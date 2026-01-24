@@ -49,7 +49,7 @@ class IsarService {
       add('Пресс', ['Скручивания', 'Подъем ног в висе', 'Планка', '"Книжка"']);
       
       // Feature: Cardio
-      addCardio('Кардио', ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк']);
+      addCardio('Кардио', ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк', 'Степпер']);
 
       await isar.writeTxn(() async {
         await isar.exercises.putAll(exercises);
@@ -63,7 +63,7 @@ class IsarService {
        // Let's ensure Cardio exists if update
        final hasCardio = await isar.exercises.filter().categoryEqualTo('Кардио').isNotEmpty();
        if (!hasCardio) {
-          final cardios = ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля'].map(
+          final cardios = ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк', 'Степпер'].map(
             (n) => Exercise()..name = n..category = 'Кардио'..type = ExerciseType.cardio
           ).toList();
           await isar.writeTxn(() async {

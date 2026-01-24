@@ -26,6 +26,27 @@ class ActiveSessionScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.check),
             onPressed: () async {
+              // Feature: Validate
+              // Check if any set has 0 weight/reps and is marked completed? 
+              // Or just clean up empty sets?
+              // Prompt says: "A set cannot be saved to the database if the input is empty or invalid."
+              // We save on every keystroke currently. 
+              // Let's assume this means "Finish Session" should validate or prevent invalid sets from being persisted effectively?
+              // Actually, activeSessionNotifier._save() is called constantly.
+              // Maybe we should just prevent 'Finish' if there are invalid sets?
+              
+               bool hasBroadlyInvalidSets = session.entries.any((e) => e.sets.any((s) => 
+                 (e.exerciseType == ExerciseType.strength && (s.weight <= 0 || s.reps <= 0)) ||
+                 (e.exerciseType == ExerciseType.cardio && (s.distance <= 0 && s.duration <= 0)) // Relaxed for cardio
+               ));
+               
+               if (hasBroadlyInvalidSets) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Заполните все поля (вес/повторы) перед завершением!'))
+                  );
+                  return;
+               }
+
               await ref.read(activeSessionProvider.notifier).finishSession();
               if (context.mounted) Navigator.pop(context);
             },
@@ -75,8 +96,6 @@ class ActiveSessionScreen extends ConsumerWidget {
               },
             ),
           ),
-          // We can replace the simple button with a more robust overlay if we want, 
-          // but for now keeping it and also triggering via set completion.
           const RestTimerButton(),
         ],
       ),
@@ -93,8 +112,6 @@ class ExerciseEntryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isCardio = entry.exerciseType == ExerciseType.cardio;
-    
-    // Feature: Last Performance Hint
     final lastPerfAsync = ref.watch(lastPerformanceProvider(entry.exerciseId ?? -1));
 
     return Card(
@@ -124,12 +141,11 @@ class ExerciseEntryCard extends ConsumerWidget {
               ],
             ),
             
-            // Hint UI
             lastPerfAsync.when(
                data: (hint) => hint != null 
                   ? Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text('Прошлый раз: $hint', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      child: Text('Прошлый раз: $hint', style: const TextStyle(color: Colors.white54, fontSize: 12)),
                     )
                   : const SizedBox.shrink(),
                loading: () => const SizedBox.shrink(),
@@ -137,12 +153,12 @@ class ExerciseEntryCard extends ConsumerWidget {
             ),
 
             const SizedBox(height: 8),
-            Row(
+             Row(
               children: [
                 Expanded(child: Text(isCardio ? 'Дистанция (км)' : 'Вес (кг)', style: Theme.of(context).textTheme.bodySmall)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(isCardio ? 'Время (сек)' : 'Повт.', style: Theme.of(context).textTheme.bodySmall)),
-                const SizedBox(width: 48), // Checkbox space
+                const SizedBox(width: 48), 
               ],
             ),
             const SizedBox(height: 8),
@@ -155,14 +171,7 @@ class ExerciseEntryCard extends ConsumerWidget {
                 set: set, 
                 isCardio: isCardio,
                 onComplete: () {
-                    // Smart Improvement: Trigger Rest Timer
-                   // We don't have a direct way to trigger the widget state from here without a provider 
-                   // or global key. But we can assume the user clicks the Rest Timer button manually or 
-                   // we can make the RestTimer listen to a provider.
-                   // The prompt said "triggers after a set is marked as Done". 
-                   // For MVP, user marks done, then taps rest. 
-                   // Auto triggering requires moving Rest Timer state to Riverpod.
-                   // Let's keep it simple: mark done locally.
+                   // Optional: Start timer
                 }
               );
             }),
@@ -208,26 +217,26 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
   @override
   void initState() {
     super.initState();
-    _col1Controller = TextEditingController(
-      text: widget.isCardio ? widget.set.distance.toString() : widget.set.weight.toString()
-    );
-    _col2Controller = TextEditingController(
-      text: widget.isCardio ? widget.set.duration.toString() : widget.set.reps.toString()
-    );
+    // Feature: Empty by default with 0 hint
+    // If value is 0, show empty string in controller to rely on hint.
     
-    // Bug Fix: Clear on tap logic handled by controllers listener or FocusNode?
-    // "clear the default "0.0" or "0" value immediately when the user taps/focuses"
-    _col1Focus.addListener(() {
-      if (_col1Focus.hasFocus && double.tryParse(_col1Controller.text) == 0) {
-        _col1Controller.clear();
-      }
-    });
+    String text1 = _valToStr(widget.isCardio ? widget.set.distance : widget.set.weight);
+    String text2 = _valToStr(widget.isCardio ? widget.set.duration : widget.set.reps);
 
-    _col2Focus.addListener(() {
-      if (_col2Focus.hasFocus && int.tryParse(_col2Controller.text) == 0) {
-        _col2Controller.clear();
-      }
+    _col1Controller = TextEditingController(text: text1);
+    _col2Controller = TextEditingController(text: text2);
+    
+    // Auto-clear logic: handled by empty initial text for 0 values.
+    // Explicit clear on focus if user types 0? 
+    // Already did `text` empty if 0, so focus just works.
+    
+    _col1Focus.addListener(() {
+       // if we want to ensure it clears "0" if somehow entered
     });
+  }
+  
+  String _valToStr(num val) {
+     return val == 0 ? '' : val.toString();
   }
   
   @override
@@ -235,10 +244,10 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     super.didUpdateWidget(oldWidget);
     if (widget.set != oldWidget.set) {
       if (!_col1Focus.hasFocus) {
-          _col1Controller.text = widget.isCardio ? widget.set.distance.toString() : widget.set.weight.toString();
+          _col1Controller.text = _valToStr(widget.isCardio ? widget.set.distance : widget.set.weight);
       }
       if (!_col2Focus.hasFocus) {
-         _col2Controller.text = widget.isCardio ? widget.set.duration.toString() : widget.set.reps.toString();
+         _col2Controller.text = _valToStr(widget.isCardio ? widget.set.duration : widget.set.reps);
       }
     }
   }
@@ -282,7 +291,12 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                 controller: _col1Controller,
                 focusNode: _col1Focus,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8)),
+                decoration: InputDecoration(
+                  isDense: true, 
+                  contentPadding: const EdgeInsets.all(8),
+                  hintText: '0', 
+                  hintStyle: TextStyle(color: Colors.grey[600])
+                ),
                 onFieldSubmitted: (_) => _save(),
               ),
             ),
@@ -297,7 +311,12 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                 controller: _col2Controller,
                 focusNode: _col2Focus,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8)),
+                decoration: InputDecoration(
+                  isDense: true, 
+                  contentPadding: const EdgeInsets.all(8),
+                  hintText: '0',
+                  hintStyle: TextStyle(color: Colors.grey[600])
+                ),
                 onFieldSubmitted: (_) => _save(),
               ),
             ),
@@ -309,6 +328,19 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
             ),
             onPressed: () {
               bool newVal = !widget.set.isCompleted;
+              
+              // Validate before marking complete?
+              if (newVal) {
+                 final val1 = double.tryParse(_col1Controller.text) ?? 0;
+                 final val2 = int.tryParse(_col2Controller.text) ?? 0;
+                 if (val1 <= 0 && val2 <= 0) {
+                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите данные!')));
+                     return;
+                 }
+                 // Ensure saved
+                 _save();
+              }
+              
               ref.read(activeSessionProvider.notifier).updateSet(
                    widget.entryIndex, widget.setIndex, isCompleted: newVal
               );

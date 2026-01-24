@@ -79,17 +79,11 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
     final entries = state!.entries;
     final entry = entries[entryIndex];
     
+    // Logic Change: New set inputs must be empty/zero
     double prevWeight = 0;
     int prevReps = 0;
     double prevDist = 0;
     int prevDur = 0;
-    
-    if (entry.sets.isNotEmpty) {
-      prevWeight = entry.sets.last.weight;
-      prevReps = entry.sets.last.reps;
-      prevDist = entry.sets.last.distance;
-      prevDur = entry.sets.last.duration;
-    }
 
     final newSet = WorkoutSet()
        ..weight = prevWeight
