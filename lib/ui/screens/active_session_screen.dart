@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
 import 'package:iron_log/providers.dart';
@@ -20,29 +21,46 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   final _formKey = GlobalKey<FormState>();
   late ConfettiController _confettiController;
+  final FocusNode _nameFocusNode = FocusNode();
+  final TextEditingController _nameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+    
+    // Logic: Clear initial default name if it was just a generated date, or use hint
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = ref.read(activeSessionProvider);
+      if (session != null) {
+        _nameController.text = ""; // Use as hint
+      }
+    });
+
+    _nameFocusNode.addListener(() {
+      if (_nameFocusNode.hasFocus) {
+        // Ready for clean input
+      }
+    });
   }
 
   @override
   void dispose() {
     _confettiController.dispose();
+    _nameFocusNode.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
   bool _isSessionValid(WorkoutSession? session) {
     if (session == null || session.entries.isEmpty) return false;
-    // Check if there is at least one entry with at least one completed valid set
     for (var entry in session.entries) {
       for (var set in entry.sets) {
         if (set.isCompleted) {
           if (entry.exerciseType == ExerciseType.strength) {
             if (set.weight > 0 && set.reps > 0) return true;
           } else {
-            if (set.distance > 0 || set.duration > 0) return true;
+            if (set.duration > 0 || set.distance > 0) return true;
           }
         }
       }
@@ -70,13 +88,21 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               if (!canFinish) {
                  HapticFeedback.vibrate();
                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Пожалуйста, заполните все поля подходов перед сохранением'))
+                    const SnackBar(content: Text('Пожалуйста, заполните необходимые данные подходов'))
                  );
                  return;
               }
               
               HapticFeedback.heavyImpact();
               _confettiController.play();
+              
+              // Logic: If name is empty, assign default
+              if (_nameController.text.trim().isEmpty) {
+                 final now = DateTime.now();
+                 ref.read(activeSessionProvider.notifier).updateName('Тренировка от ${DateFormat('dd.MM').format(now)}');
+              } else {
+                 ref.read(activeSessionProvider.notifier).updateName(_nameController.text);
+              }
               
               await ref.read(activeSessionProvider.notifier).finishSession();
               
@@ -91,66 +117,66 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       body: Stack(
         alignment: Alignment.topCenter,
         children: [
-          Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: TextFormField(
-                    initialValue: session.name,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                    decoration: const InputDecoration(
-                      labelText: 'НАЗВАНИЕ',
-                      prefixIcon: Icon(LucideIcons.edit3, size: 20),
-                    ),
-                    onChanged: (val) => ref.read(activeSessionProvider.notifier).updateName(val),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: TextField(
+                  controller: _nameController,
+                  focusNode: _nameFocusNode,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  decoration: InputDecoration(
+                    labelText: 'НАЗВАНИЕ',
+                    hintText: 'Моя тренировка',
+                    hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
+                    prefixIcon: const Icon(LucideIcons.edit3, size: 20),
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
                   ),
                 ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: session.entries.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == session.entries.length) {
-                        return Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: InkWell(
-                            onTap: () {
-                               HapticFeedback.lightImpact();
-                               Navigator.push(context, MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()));
-                            },
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(radius),
-                                border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(LucideIcons.plus, color: Theme.of(context).colorScheme.primary),
-                                  const SizedBox(width: 8),
-                                  const Text('ДОБАВИТЬ УПРАЖНЕНИЕ', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                                ],
-                              ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: session.entries.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == session.entries.length) {
+                      return Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: InkWell(
+                          onTap: () {
+                             HapticFeedback.lightImpact();
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()));
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(LucideIcons.plus, color: Theme.of(context).colorScheme.primary),
+                                const SizedBox(width: 8),
+                                const Text('ДОБАВИТЬ УПРАЖНЕНИЕ', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                              ],
                             ),
                           ),
-                        );
-                      }
-                      return ExerciseEntryCard(
-                        key: ValueKey('entry_${session.entries[index].exerciseId}_$index'),
-                        entryIndex: index, 
-                        entry: session.entries[index]
+                        ),
                       );
-                    },
-                  ),
+                    }
+                    return ExerciseEntryCard(
+                      key: ValueKey('entry_${session.entries[index].exerciseId}_$index'),
+                      entryIndex: index, 
+                      entry: session.entries[index]
+                    );
+                  },
                 ),
-                const RestTimerButton(),
-              ],
-            ),
+              ),
+              const RestTimerButton(),
+            ],
           ),
           ConfettiWidget(
             confettiController: _confettiController,
@@ -343,7 +369,7 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                   if (!hasValue) {
                      HapticFeedback.vibrate();
                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Пожалуйста, заполните поля подходов'))
+                        const SnackBar(content: Text('Пожалуйста, заполните поля подхода'))
                      );
                      return;
                   }
@@ -358,5 +384,3 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     );
   }
 }
-
-const double radius = 24.0;

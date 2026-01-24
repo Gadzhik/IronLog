@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AppThemeType { onyx, cyberpunk, forest }
+enum AppThemeType { onyx, cyberpunk, toxic, sea }
 
 class AppTheme {
   static const double radius = 24.0;
@@ -25,11 +25,6 @@ class AppTheme {
       headlineMedium: GoogleFonts.montserrat(fontWeight: FontWeight.w900),
       titleLarge: GoogleFonts.montserrat(fontWeight: FontWeight.bold),
     ),
-    cardTheme: CardThemeData(
-      color: const Color(0xFF111111),
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-    ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -39,13 +34,6 @@ class AppTheme {
         letterSpacing: 2,
         color: const Color(0xFFD4AF37),
       ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: const Color(0xFF111111),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(radius), borderSide: BorderSide.none),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.black,
@@ -75,24 +63,45 @@ class AppTheme {
     ),
   );
 
-  static final ThemeData deepForest = ThemeData(
+  static final ThemeData toxicNight = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: const ColorScheme.dark(
-      primary: Color(0xFF2ECC71), // Emerald
-      secondary: Color(0xFF27AE60),
-      surface: Color(0xFF141D15),
-      background: Color(0xFF0A120B),
+      primary: Color(0xFFADFF2F), // Neon Lime
+      secondary: Color(0xFF7FFF00),
+      surface: Color(0xFF1A1A1A),
+      background: Color(0xFF0F0F0F),
       onBackground: Color(0xFFE0E0E0),
       onSurface: Color(0xFFE0E0E0),
     ),
-    scaffoldBackgroundColor: const Color(0xFF0A120B),
+    scaffoldBackgroundColor: const Color(0xFF0F0F0F),
     textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme).copyWith(
-      displayLarge: GoogleFonts.bebasNeue(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFF2ECC71)),
+      displayLarge: GoogleFonts.bebasNeue(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFFADFF2F)),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
-      titleTextStyle: GoogleFonts.bebasNeue(fontSize: 32, color: const Color(0xFF2ECC71), letterSpacing: 2),
+      titleTextStyle: GoogleFonts.bebasNeue(fontSize: 32, color: const Color(0xFFADFF2F), letterSpacing: 2),
+    ),
+  );
+
+  static final ThemeData deepSea = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFF0077FF), // Electric Blue
+      secondary: Color(0xFF0055CC),
+      surface: Color(0xFF05151F),
+      background: Color(0xFF010C13),
+      onBackground: Color(0xFFE0E0E0),
+      onSurface: Color(0xFFE0E0E0),
+    ),
+    scaffoldBackgroundColor: const Color(0xFF010C13),
+    textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme).copyWith(
+      displayLarge: GoogleFonts.bebasNeue(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFF0077FF)),
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.transparent,
+      titleTextStyle: GoogleFonts.bebasNeue(fontSize: 32, color: const Color(0xFF0077FF), letterSpacing: 2),
     ),
   );
 }
@@ -105,7 +114,7 @@ class ThemeNotifier extends StateNotifier<AppThemeType> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final idx = prefs.getInt('theme_index') ?? 0;
-    if (idx < AppThemeType.values.length) {
+    if (idx >= 0 && idx < AppThemeType.values.length) {
       state = AppThemeType.values[idx];
     }
   }
@@ -128,7 +137,9 @@ final currentThemeProvider = Provider<ThemeData>((ref) {
       return AppTheme.onyxGold;
     case AppThemeType.cyberpunk:
       return AppTheme.cyberPunk;
-    case AppThemeType.forest:
-      return AppTheme.deepForest;
+    case AppThemeType.toxic:
+      return AppTheme.toxicNight;
+    case AppThemeType.sea:
+      return AppTheme.deepSea;
   }
 });

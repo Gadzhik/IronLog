@@ -92,11 +92,12 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
       e.category.toLowerCase().contains(_query.toLowerCase())
     ).toList();
     
-    final grouped = groupBy(filtered, (e) => e.category.isEmpty ? 'ПРОЧЕЕ' : e.category);
+    // Feature: Independent grouping and filtering logic
+    final grouped = groupBy(filtered, (e) => (e.category == null || e.category!.isEmpty) ? 'ПРОЧЕЕ' : e.category);
     final keys = grouped.keys.toList()..sort((a,b) {
        if (a == 'ПРОЧЕЕ') return 1;
        if (b == 'ПРОЧЕЕ') return -1;
-       return a.compareTo(b);
+       return a!.compareTo(b!);
     });
 
     return Column(
@@ -120,7 +121,7 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ExpansionTile(
-                  title: Text(cat.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                  title: Text(cat!.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
                   initiallyExpanded: false, // Collapsed by default
                   shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
                   collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
