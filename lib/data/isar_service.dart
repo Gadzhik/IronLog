@@ -182,10 +182,18 @@ class IsarService {
   // Stats
   Future<List<Map<String, dynamic>>> getMaxWeightHistory(int exerciseId, {DateTime? after}) async {
     final isar = await db;
-    var builder = isar.workoutSessions.where().sortByStartTime();
+    // Fix: Accurate Date Query
+    // We want sessions where startTime >= after (if after is provided)
+    // "Isar searches from 00:00:00 to 23:59:59"
+    
+    var builder;
     
     if (after != null) {
-      builder = isar.workoutSessions.filter().startTimeGreaterThan(after).sortByStartTime();
+      // Ensure we start from the beginning of the 'after' day
+      final startOfDay = DateTime(after.year, after.month, after.day);
+      builder = isar.workoutSessions.filter().startTimeGreaterThan(startOfDay, include: true).sortByStartTime();
+    } else {
+      builder = isar.workoutSessions.where().sortByStartTime();
     }
     
     final sessions = await builder.findAll();
@@ -212,5 +220,27 @@ class IsarService {
       }
     }
     return history;
+  }
+  
+  // Feature: Independent Filter Logic - Get exercises with data in a range
+  Future<List<Exercise>> getExercisesForRange(DateTime rangeStart) async {
+     final isar = await db;
+     // Find all sessions in range
+     final sessions = await isar.workoutSessions
+       .filter()
+       .startTimeGreaterThan(rangeStart, include: true)
+       .findAll();
+       
+     final exerciseIds = <int>{};
+     for(var s in sessions) {
+       for(var e in s.entries) {
+         if (e.exerciseId != null) exerciseIds.add(e.exerciseId!);
+       }
+     }
+     
+     if (exerciseIds.isEmpty) return [];
+     
+     // Fetch exercises
+     return await isar.exercises.filter().anyOf(exerciseIds, (q, id) => q.idEqualTo(id)).findAll();
   }
 }

@@ -1,57 +1,82 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Theme Names
+enum AppThemeType { midnight, iron, toxic }
 
 class AppTheme {
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.deepOrange, // Iron/Industrial feel
-        brightness: Brightness.dark,
-        surface: const Color(0xFF1E1E1E),
-        background: const Color(0xFF0A0A0A),
-        primary: const Color(0xFFFF5722),
-        secondary: const Color(0xFF00E5FF), // Cyber accent
-      ),
-      scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-      textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme).apply(
-        bodyColor: Colors.white,
-        displayColor: Colors.white,
-      ),
-      appBarTheme: const AppBarTheme(
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-      ),
-      cardTheme: CardThemeData(
-        color: const Color(0xFF1C1C1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 0, // Flat premium look
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.deepOrange,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: const Color(0xFF2C2C2E),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        hintStyle: const TextStyle(color: Colors.grey),
-      ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: Colors.deepOrange,
-        foregroundColor: Colors.white,
-      ),
-    );
+  static final ThemeData midnight = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFF64B5F6), // Blue
+      secondary: Color(0xFF1E88E5),
+      surface: Color(0xFF0D1117), // Dark Blue Grey
+      background: Color(0xFF010409),
+    ),
+    scaffoldBackgroundColor: const Color(0xFF010409),
+    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    visualDensity: VisualDensity.compact,
+  );
+
+  static final ThemeData iron = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFFFF9800), // Orange
+      secondary: Color(0xFFF57C00),
+      surface: Color(0xFF212121), // Grey
+      background: Color(0xFF121212),
+    ),
+    scaffoldBackgroundColor: const Color(0xFF121212),
+    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    visualDensity: VisualDensity.compact,
+  );
+
+  static final ThemeData toxic = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFF00E676), // Neon Green
+      secondary: Color(0xFF00C853),
+      surface: Color(0xFF263238), // Charcoal
+      background: Color(0xFF1C2326),
+    ),
+    scaffoldBackgroundColor: const Color(0xFF1C2326),
+    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    visualDensity: VisualDensity.compact,
+  );
+}
+
+class ThemeNotifier extends StateNotifier<AppThemeType> {
+  ThemeNotifier() : super(AppThemeType.midnight) {
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idx = prefs.getInt('theme_index') ?? 0;
+    state = AppThemeType.values[idx];
+  }
+
+  Future<void> setTheme(AppThemeType type) async {
+    state = type;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('theme_index', type.index);
   }
 }
+
+final themeProvider = StateNotifierProvider<ThemeNotifier, AppThemeType>((ref) {
+  return ThemeNotifier();
+});
+
+final currentThemeProvider = Provider<ThemeData>((ref) {
+  final type = ref.watch(themeProvider);
+  switch (type) {
+    case AppThemeType.midnight: return AppTheme.midnight;
+    case AppThemeType.iron: return AppTheme.iron;
+    case AppThemeType.toxic: return AppTheme.toxic;
+  }
+});

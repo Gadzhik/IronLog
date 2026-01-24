@@ -165,3 +165,12 @@ final activeSessionProvider = StateNotifierProvider<ActiveSessionNotifier, Worko
   final service = ref.read(isarServiceProvider);
   return ActiveSessionNotifier(service);
 });
+
+final exercisesForRangeProvider = FutureProvider.family<List<Exercise>, Duration?>((ref, duration) async {
+  final service = ref.read(isarServiceProvider);
+  if (duration == null) return service.getAllExercises();
+  final start = DateTime.now().subtract(duration);
+  // Ensure we use the Start of that Day for the query
+  final startOfDay = DateTime(start.year, start.month, start.day);
+  return service.getExercisesForRange(startOfDay);
+});

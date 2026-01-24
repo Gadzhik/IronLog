@@ -6,11 +6,18 @@ import 'package:iron_log/providers.dart';
 import 'package:iron_log/ui/screens/exercise_selection_screen.dart';
 import 'package:iron_log/ui/widgets/rest_timer.dart';
 
-class ActiveSessionScreen extends ConsumerWidget {
+class ActiveSessionScreen extends ConsumerStatefulWidget {
   const ActiveSessionScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActiveSessionScreen> createState() => _ActiveSessionScreenState();
+}
+
+class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(activeSessionProvider);
 
     if (session == null) {
@@ -26,26 +33,26 @@ class ActiveSessionScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.check),
             onPressed: () async {
-              // Feature: Validate
-              // Check if any set has 0 weight/reps and is marked completed? 
-              // Or just clean up empty sets?
-              // Prompt says: "A set cannot be saved to the database if the input is empty or invalid."
-              // We save on every keystroke currently. 
-              // Let's assume this means "Finish Session" should validate or prevent invalid sets from being persisted effectively?
-              // Actually, activeSessionNotifier._save() is called constantly.
-              // Maybe we should just prevent 'Finish' if there are invalid sets?
+              // Feature: GlobalKey Form Validation
+              if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+                 ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Заполните все обязательные поля!'))
+                 );
+                 return;
+              }
               
-               bool hasBroadlyInvalidSets = session.entries.any((e) => e.sets.any((s) => 
-                 (e.exerciseType == ExerciseType.strength && (s.weight <= 0 || s.reps <= 0)) ||
-                 (e.exerciseType == ExerciseType.cardio && (s.distance <= 0 && s.duration <= 0)) // Relaxed for cardio
-               ));
+              // Fallback logic check for empty sets not caught by form (if any)
+              bool hasBroadlyInvalidSets = session.entries.any((e) => e.sets.any((s) => 
+                 (e.exerciseType == ExerciseType.strength && (s.weight <= 0 && s.reps <= 0)) ||
+                 (e.exerciseType == ExerciseType.cardio && (s.distance <= 0 && s.duration <= 0))
+              ));
                
-               if (hasBroadlyInvalidSets) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Заполните все поля (вес/повторы) перед завершением!'))
-                  );
-                  return;
-               }
+              if (hasBroadlyInvalidSets) {
+                 ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Проверьте пустые подходы!'))
+                 );
+                 return;
+              }
 
               await ref.read(activeSessionProvider.notifier).finishSession();
               if (context.mounted) Navigator.pop(context);
@@ -54,50 +61,55 @@ class ActiveSessionScreen extends ConsumerWidget {
           )
         ],
       ),
-      body: Column(
-        children: [
-          // Feature: Workout Naming
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextFormField(
-              initialValue: session.name,
-              decoration: const InputDecoration(
-                labelText: 'Название тренировки',
-                prefixIcon: Icon(Icons.edit),
+      body: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: TextFormField(
+                initialValue: session.name,
+                decoration: const InputDecoration(
+                  labelText: 'Название тренировки',
+                  prefixIcon: Icon(Icons.edit),
+                ),
+                onChanged: (val) {
+                  ref.read(activeSessionProvider.notifier).updateName(val);
+                },
               ),
-              onChanged: (val) {
-                ref.read(activeSessionProvider.notifier).updateName(val);
-              },
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 100),
-              itemCount: session.entries.length + 1,
-              itemBuilder: (context, index) {
-                if (index == session.entries.length) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                         Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()),
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Добавить упражнение'),
-                    ),
-                  );
-                }
-                
-                final entry = session.entries[index];
-                return ExerciseEntryCard(entryIndex: index, entry: entry);
-              },
+            Expanded(
+              child: SingleChildScrollView(
+                 child: Column(
+                   children: [
+                     ...List.generate(session.entries.length + 1, (index) {
+                        if (index == session.entries.length) {
+                          return Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                 Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()),
+                                );
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Добавить упражнение'),
+                            ),
+                          );
+                        }
+                        
+                        final entry = session.entries[index];
+                        return ExerciseEntryCard(entryIndex: index, entry: entry);
+                     }),
+                     const SizedBox(height: 100), // Space for timer
+                   ],
+                 ),
+              ),
             ),
-          ),
-          const RestTimerButton(),
-        ],
+            const RestTimerButton(),
+          ],
+        ),
       ),
     );
   }
@@ -217,8 +229,6 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
   @override
   void initState() {
     super.initState();
-    // Feature: Empty by default with 0 hint
-    // If value is 0, show empty string in controller to rely on hint.
     
     String text1 = _valToStr(widget.isCardio ? widget.set.distance : widget.set.weight);
     String text2 = _valToStr(widget.isCardio ? widget.set.duration : widget.set.reps);
@@ -226,12 +236,22 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     _col1Controller = TextEditingController(text: text1);
     _col2Controller = TextEditingController(text: text2);
     
-    // Auto-clear logic: handled by empty initial text for 0 values.
-    // Explicit clear on focus if user types 0? 
-    // Already did `text` empty if 0, so focus just works.
-    
     _col1Focus.addListener(() {
-       // if we want to ensure it clears "0" if somehow entered
+      if (_col1Focus.hasFocus) {
+        final text = _col1Controller.text;
+        if (text == '' || text == '0' || text == '0.0') {
+           _col1Controller.clear();
+        }
+      }
+    });
+    
+    _col2Focus.addListener(() {
+      if (_col2Focus.hasFocus) {
+         final text = _col2Controller.text;
+         if (text == '' || text == '0') {
+            _col2Controller.clear();
+         }
+      }
     });
   }
   
@@ -297,6 +317,10 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                   hintText: '0', 
                   hintStyle: TextStyle(color: Colors.grey[600])
                 ),
+                validator: (val) {
+                   if (val == null || val.isEmpty || val == '0') return '!';
+                   return null;
+                },
                 onFieldSubmitted: (_) => _save(),
               ),
             ),
@@ -317,6 +341,10 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                   hintText: '0',
                   hintStyle: TextStyle(color: Colors.grey[600])
                 ),
+                validator: (val) {
+                   if (val == null || val.isEmpty || val == '0') return '!';
+                   return null;
+                },
                 onFieldSubmitted: (_) => _save(),
               ),
             ),
@@ -328,8 +356,6 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
             ),
             onPressed: () {
               bool newVal = !widget.set.isCompleted;
-              
-              // Validate before marking complete?
               if (newVal) {
                  final val1 = double.tryParse(_col1Controller.text) ?? 0;
                  final val2 = int.tryParse(_col2Controller.text) ?? 0;
@@ -337,7 +363,6 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите данные!')));
                      return;
                  }
-                 // Ensure saved
                  _save();
               }
               

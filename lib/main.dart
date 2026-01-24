@@ -27,7 +27,7 @@ class IronLogApp extends ConsumerWidget {
     return MaterialApp(
       title: 'IronLog',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: ref.watch(currentThemeProvider),
       locale: const Locale('ru', 'RU'),
       home: const HomeScreen(),
     );

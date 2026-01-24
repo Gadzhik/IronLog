@@ -61,7 +61,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final exercisesAsync = ref.watch(exercisesProvider);
+    // Logic: If range is selected, show only relevant exercises. Else show all.
+    final range = _selectedRangeKey != null ? _ranges[_selectedRangeKey] : null;
+    final exercisesAsync = ref.watch(exercisesForRangeProvider(range));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Прогресс')),
@@ -71,7 +73,22 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           children: [
             exercisesAsync.when(
               data: (exercises) {
-                if (exercises.isEmpty) return const Text('Нет упражнений');
+                // If selected exercise is no longer in the list (e.g. range changed), we might keep it or clear it.
+                // Requirement: "Independent Filters". 
+                // Suggestion: Ensure the dropdown shows exercises valid for the range. 
+                // If user selected "Bench Press" and "1 Day", but Bench Press wasn't done today, 
+                // the chart will simply show "No Data" which is correct behavior for independent filters?
+                // Or should the dropdown be filtered?
+                // "If I select '1 day', the screen must show ALL exercises performed on that day."
+                // This implies the picker list updates.
+                
+                if (exercises.isEmpty) return const Text('Нет данных за этот период');
+                
+                // If currently selected exercise is not in the new filtered list?
+                // Independent filters usually means one doesn't clear the other, but the RESULT combines both.
+                // But the picker itself: "Scenario: If I select '1 day', the screen must show ALL exercises performed on that day."
+                // This likely means the *available* exercises to pick from.
+                
                 return InkWell(
                   onTap: () => _showExercisePicker(exercises),
                   child: Container(
@@ -214,6 +231,8 @@ class _ExercisePickerState extends State<_ExercisePicker> {
                          title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold)),
                          initiallyExpanded: true, 
                          children: grouped[cat]!.map((e) => ListTile(
+                           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                           visualDensity: VisualDensity.compact,
                            title: Text(e.name),
                            onTap: () => widget.onSelect(e),
                          )).toList(),

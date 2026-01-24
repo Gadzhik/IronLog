@@ -8,6 +8,8 @@ import 'package:iron_log/ui/screens/stats_screen.dart';
 import 'package:iron_log/ui/screens/workout_detail_screen.dart';
 import 'package:flutter/services.dart';
 
+import 'package:iron_log/ui/app_theme.dart';
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -104,6 +106,17 @@ class HistoryTab extends ConsumerWidget {
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'export', child: Text('Экспорт JSON')),
               const PopupMenuItem(value: 'clear', child: Text('Очистить всё', style: TextStyle(color: Colors.red))),
+            ],
+          ),
+          PopupMenuButton<AppThemeType>(
+            icon: const Icon(Icons.color_lens),
+            onSelected: (val) {
+               ref.read(themeProvider.notifier).setTheme(val);
+            },
+            itemBuilder: (context) => [
+               const PopupMenuItem(value: AppThemeType.midnight, child: Text('Midnight')),
+               const PopupMenuItem(value: AppThemeType.iron, child: Text('Iron')),
+               const PopupMenuItem(value: AppThemeType.toxic, child: Text('Toxic')),
             ],
           )
         ],
