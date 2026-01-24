@@ -10,8 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  isar_community: ^3.3.0
-  isar_community_flutter_libs: ^3.3.0
+  isar_community: ^3.1.0+1
+  isar_community_flutter_libs: ^3.1.0+1
   flutter_riverpod: ^2.6.1
   fl_chart: ^0.68.0
   path_provider: ^2.1.2
@@ -29,7 +29,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.1
   build_runner: ^2.4.8
-  isar_community_generator: ^3.3.0
+  isar_community_generator: ^3.1.0+1
 
 flutter:
   uses-material-design: true

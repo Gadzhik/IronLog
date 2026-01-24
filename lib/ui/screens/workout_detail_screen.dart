@@ -78,21 +78,22 @@ class WorkoutDetailScreen extends StatelessWidget {
                      ...entry.sets.asMap().entries.map((e) {
                         final i = e.key + 1;
                         final s = e.value;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: Row(
-                             children: [
-                               SizedBox(width: 30, child: Text('$i', style: const TextStyle(fontWeight: FontWeight.bold))),
-                               // Feature: Integer Formatting
-                               Expanded(child: Text(isCardio 
-                                  ? '${s.distance % 1 == 0 ? s.distance.toInt() : s.distance} км' 
-                                  : '${s.weight % 1 == 0 ? s.weight.toInt() : s.weight} кг')),
-                               Expanded(child: Text(isCardio 
-                                  ? '${s.duration} с' 
-                                  : '${s.reps}')),
-                             ],
-                          ),
-                        );
+                         String formatVal(double val) => val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(1);
+                         
+                         return Padding(
+                           padding: const EdgeInsets.symmetric(vertical: 6.0),
+                           child: Row(
+                              children: [
+                                SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).hintColor))),
+                                Expanded(child: Text(isCardio 
+                                   ? '${formatVal(s.distance)} км' 
+                                   : '${formatVal(s.weight)} кг')),
+                                Expanded(child: Text(isCardio 
+                                   ? '${s.duration} с' 
+                                   : '${s.reps}'))
+                              ],
+                           ),
+                         );
                      }),
                    ],
                  ),

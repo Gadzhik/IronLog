@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
@@ -55,6 +56,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               }
 
               await ref.read(activeSessionProvider.notifier).finishSession();
+              HapticFeedback.heavyImpact();
               if (context.mounted) Navigator.pop(context);
             },
             tooltip: 'Завершить',
@@ -71,7 +73,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                 initialValue: session.name,
                 decoration: const InputDecoration(
                   labelText: 'Название тренировки',
-                  prefixIcon: Icon(Icons.edit),
+                  prefixIcon: Icon(Icons.edit_rounded),
                 ),
                 onChanged: (val) {
                   ref.read(activeSessionProvider.notifier).updateName(val);
@@ -88,13 +90,18 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                             padding: const EdgeInsets.all(16.0),
                             child: ElevatedButton.icon(
                               onPressed: () {
+                                 HapticFeedback.lightImpact();
                                  Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()),
                                 );
                               },
-                              icon: const Icon(Icons.add),
+                              icon: const Icon(Icons.add_rounded),
                               label: const Text('Добавить упражнение'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
                             ),
                           );
                         }
@@ -369,12 +376,18 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
               ref.read(activeSessionProvider.notifier).updateSet(
                    widget.entryIndex, widget.setIndex, isCompleted: newVal
               );
-              if (newVal) widget.onComplete();
+              if (newVal) {
+                 HapticFeedback.mediumImpact();
+                 widget.onComplete();
+              } else {
+                 HapticFeedback.lightImpact();
+              }
             },
           ),
           IconButton(
              icon: const Icon(Icons.close, size: 16),
              onPressed: () {
+                HapticFeedback.selectionClick();
                 ref.read(activeSessionProvider.notifier).removeSet(widget.entryIndex, widget.setIndex);
              },
           )

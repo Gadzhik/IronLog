@@ -9,22 +9,22 @@ enum AppThemeType { midnight, iron, toxic, light }
 class AppTheme {
   static const _inputTheme = InputDecorationTheme(
     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    isDense: false,
-    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+    isDense: true,
+    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
   );
 
   static final ThemeData midnight = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: const ColorScheme.dark(
-      primary: Color(0xFF64B5F6), // Blue
-      secondary: Color(0xFF1E88E5),
-      surface: Color(0xFF0D1117), // Dark Blue Grey
-      background: Color(0xFF010409),
+      primary: Color(0xFF00FFD1), // Neon Cyan
+      secondary: Color(0xFF00BFA5),
+      surface: Color(0xFF121212),
+      background: Color(0xFF000000), // Pure Black
     ),
-    scaffoldBackgroundColor: const Color(0xFF010409),
-    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-    visualDensity: VisualDensity.standard, // Updated to standard per requirement
+    scaffoldBackgroundColor: const Color(0xFF000000),
+    textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
+    visualDensity: VisualDensity.standard,
     inputDecorationTheme: _inputTheme,
   );
 
@@ -32,13 +32,13 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: const ColorScheme.dark(
-      primary: Color(0xFFFF9800), // Orange
-      secondary: Color(0xFFF57C00),
-      surface: Color(0xFF212121), // Grey
-      background: Color(0xFF121212),
+      primary: Color(0xFFFFCC00), // Vibrant Gold
+      secondary: Color(0xFFFFD600),
+      surface: Color(0xFF1A1A1A),
+      background: Color(0xFF050505),
     ),
-    scaffoldBackgroundColor: const Color(0xFF121212),
-    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    scaffoldBackgroundColor: const Color(0xFF050505),
+    textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
     visualDensity: VisualDensity.standard,
     inputDecorationTheme: _inputTheme,
   );
@@ -47,13 +47,13 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: const ColorScheme.dark(
-      primary: Color(0xFF00E676), // Neon Green
-      secondary: Color(0xFF00C853),
-      surface: Color(0xFF263238), // Charcoal
-      background: Color(0xFF1C2326),
+      primary: Color(0xFF39FF14), // Neon Green
+      secondary: Color(0xFF32CD32),
+      surface: Color(0xFF0D0D0D),
+      background: Color(0xFF000000),
     ),
-    scaffoldBackgroundColor: const Color(0xFF1C2326),
-    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+    scaffoldBackgroundColor: const Color(0xFF000000),
+    textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
     visualDensity: VisualDensity.standard,
     inputDecorationTheme: _inputTheme,
   );
@@ -62,27 +62,30 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.light,
     colorScheme: const ColorScheme.light(
-      primary: Color(0xFF546E7A), // Muted Blue Grey (Soft)
-      secondary: Color(0xFF90A4AE),
+      primary: Color(0xFF008080), // Teal
+      secondary: Color(0xFF26A69A),
       surface: Colors.white,
-      background: Color(0xFFF5F7FA), // Soft Blue-Grey/Off-White
-      onBackground: Color(0xFF2D3436), // Deep Charcoal
-      onSurface: Color(0xFF2D3436),
+      background: Color(0xFFF0F2F5), // Soft Light BG
+      onBackground: Color(0xFF202124),
+      onSurface: Color(0xFF202124),
     ),
-    scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-    textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).apply(
-      bodyColor: const Color(0xFF2D3436), 
-      displayColor: const Color(0xFF2D3436),
+    scaffoldBackgroundColor: const Color(0xFFF0F2F5),
+    textTheme: GoogleFonts.montserratTextTheme(ThemeData.light().textTheme).apply(
+      bodyColor: const Color(0xFF202124), 
+      displayColor: const Color(0xFF202124),
     ),
     visualDensity: VisualDensity.standard,
     cardTheme: const CardThemeData(
       color: Colors.white,
-      elevation: 1,
-      shadowColor: Color(0x1A000000),
-      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      elevation: 4,
+      shadowColor: Color(0x0D000000),
+      margin: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
     ),
-    inputDecorationTheme: _inputTheme,
+    inputDecorationTheme: _inputTheme.copyWith(
+      filled: true,
+      fillColor: Colors.white,
+    )
   );
 }
 

@@ -55,17 +55,12 @@ class IsarService {
         await isar.exercises.putAll(exercises);
       });
     } else {
-       // Migration logic if needed to add types to existing exercises?
-       // For now, assuming fresh install or okay with defaults. 
-       // If running on existing DB, existing exercises might have null type or default index. 
-       // Since the field has a default value, Isar handles it on next read/write.
-       
-       // Feature: Ensure Cardio exercises exist (Migration)
+       // Feature: Ensure All Cardio exercises exist including Aerobike & Stepper
        final cardios = ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк', 'Степпер'];
        
        for (var name in cardios) {
-          final count = await isar.exercises.filter().nameEqualTo(name).count();
-          if (count == 0) {
+          final exists = await isar.exercises.filter().nameEqualTo(name).count() > 0;
+          if (!exists) {
              final exercise = Exercise()..name = name..category = 'Кардио'..type = ExerciseType.cardio;
              await isar.writeTxn(() async {
                await isar.exercises.put(exercise);
@@ -78,12 +73,12 @@ class IsarService {
   // CRUD Helpers
   Future<List<Exercise>> getAllExercises() async {
     final isar = await db;
-    return await isar.exercises.where().findAll();
+    return isar.exercises.where().findAll();
   }
   
   Future<List<Exercise>> searchExercises(String query) async {
     final isar = await db;
-    return await isar.exercises
+    return isar.exercises
         .filter()
         .nameContains(query, caseSensitive: false)
         .or()
@@ -106,7 +101,7 @@ class IsarService {
 
   Future<List<WorkoutSession>> getWorkoutHistory() async {
     final isar = await db;
-    return await isar.workoutSessions.where().sortByStartTimeDesc().findAll();
+    return isar.workoutSessions.where().sortByStartTimeDesc().findAll();
   }
   
   // Feature: Delete
