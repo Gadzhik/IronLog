@@ -90,6 +90,7 @@ class IsarService {
         .or()
         .categoryContains(queryStr, caseSensitive: false)
         .sortByName()
+        .build()
         .findAll();
   }
 

@@ -33,6 +33,23 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     super.dispose();
   }
 
+  bool _isSessionValid(WorkoutSession? session) {
+    if (session == null || session.entries.isEmpty) return false;
+    // Check if there is at least one entry with at least one completed valid set
+    for (var entry in session.entries) {
+      for (var set in entry.sets) {
+        if (set.isCompleted) {
+          if (entry.exerciseType == ExerciseType.strength) {
+            if (set.weight > 0 && set.reps > 0) return true;
+          } else {
+            if (set.distance > 0 || set.duration > 0) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(activeSessionProvider);
@@ -41,15 +58,20 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final bool canFinish = _isSessionValid(session);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('ТРЕНИРОВКА', style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 2)),
         actions: [
           IconButton(
-            icon: const Icon(LucideIcons.check),
+            icon: Icon(LucideIcons.check, color: canFinish ? Theme.of(context).colorScheme.primary : Colors.grey),
             onPressed: () async {
-              if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
+              if (!canFinish) {
                  HapticFeedback.vibrate();
+                 ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Пожалуйста, заполните все поля подходов перед сохранением'))
+                 );
                  return;
               }
               
@@ -103,7 +125,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 20),
                               decoration: BoxDecoration(
                                 color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(radius),
                                 border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.2)),
                               ),
                               child: Row(
@@ -245,7 +267,7 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     _col2Controller = TextEditingController(text: _format(widget.isCardio ? widget.set.duration : widget.set.reps));
   }
 
-  String _format(num val) => val == 0 ? '' : (val % 1 == 0 ? val.toInt().toString() : val.toString());
+  String _format(num val) => val == 0 ? '' : val.toInt().toString();
 
   void _save() {
      final v1 = double.tryParse(_col1Controller.text) ?? 0;
@@ -259,6 +281,13 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
 
   @override
   Widget build(BuildContext context) {
+    bool hasValue = false;
+    if (widget.isCardio) {
+       hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 || (int.tryParse(_col2Controller.text) ?? 0) > 0;
+    } else {
+       hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 && (int.tryParse(_col2Controller.text) ?? 0) > 0;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
@@ -302,12 +331,26 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
           IconButton(
             icon: Icon(
               widget.set.isCompleted ? LucideIcons.checkCircle2 : LucideIcons.circle,
-              color: widget.set.isCompleted ? Theme.of(context).colorScheme.primary : Colors.grey[700],
+              color: widget.set.isCompleted 
+                  ? Theme.of(context).colorScheme.primary 
+                  : (hasValue ? Colors.grey[400] : Colors.grey[800]),
             ),
             onPressed: () {
-               HapticFeedback.mediumImpact();
-               _save();
-               ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: !widget.set.isCompleted);
+               if (widget.set.isCompleted) {
+                  HapticFeedback.lightImpact();
+                  ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: false);
+               } else {
+                  if (!hasValue) {
+                     HapticFeedback.vibrate();
+                     ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Пожалуйста, заполните поля подходов'))
+                     );
+                     return;
+                  }
+                  HapticFeedback.mediumImpact();
+                  _save();
+                  ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: true);
+               }
             },
           ),
         ],
@@ -315,3 +358,5 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     );
   }
 }
+
+const double radius = 24.0;

@@ -80,6 +80,7 @@ class HistoryTab extends ConsumerWidget {
             itemBuilder: (context) => [
                const PopupMenuItem(value: AppThemeType.onyx, child: Text('Onyx & Gold')),
                const PopupMenuItem(value: AppThemeType.cyberpunk, child: Text('Cyber Punk')),
+               const PopupMenuItem(value: AppThemeType.forest, child: Text('Deep Forest')),
             ],
           ),
         ],
@@ -99,31 +100,53 @@ class HistoryTab extends ConsumerWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
               final session = sessions[index];
               return Dismissible(
                 key: ValueKey(session.id),
-                direction: DismissDirection.endToStart,
+                // Fix: Allow swiping both ways, but handle confirmDismiss
+                direction: DismissDirection.horizontal,
+                // Fix: Mandatory background for right swipe (startToEnd)
                 background: Container(
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.only(left: 24),
-                  color: Colors.red.withOpacity(0.1),
-                  child: const Icon(LucideIcons.trash2, color: Colors.red),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Icon(LucideIcons.eye, color: Theme.of(context).colorScheme.primary),
                 ),
+                // Fix: secondaryBackground for left swipe (endToStart)
                 secondaryBackground: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 24),
-                  color: Colors.red.withOpacity(0.1),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
                   child: const Icon(LucideIcons.trash2, color: Colors.red),
                 ),
-                onDismissed: (_) {
-                  HapticFeedback.mediumImpact();
-                  ref.read(isarServiceProvider).deleteWorkout(session.id);
+                confirmDismiss: (direction) async {
+                  if (direction == DismissDirection.startToEnd) {
+                    // Fix: Right swipe logic - View Details
+                    HapticFeedback.lightImpact();
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
+                    return false; // Don't dismiss
+                  } else {
+                    // Left swipe - Delete
+                    return true; // Proceed to delete
+                  }
+                },
+                onDismissed: (direction) {
+                  if (direction == DismissDirection.endToStart) {
+                    HapticFeedback.mediumImpact();
+                    ref.read(isarServiceProvider).deleteWorkout(session.id);
+                  }
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
                   child: GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
@@ -173,7 +196,7 @@ class WorkoutHistoryCard extends StatelessWidget {
                 ),
               ),
               if (duration > 0)
-                Text('$duration МИН', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                Text('${duration.toInt()} МИН', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 1)),
             ],
           ),
           const SizedBox(height: 4),

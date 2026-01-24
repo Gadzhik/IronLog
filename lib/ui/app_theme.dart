@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AppThemeType { onyx, cyberpunk }
+enum AppThemeType { onyx, cyberpunk, forest }
 
 class AppTheme {
   static const double radius = 24.0;
@@ -15,11 +15,11 @@ class AppTheme {
       primary: Color(0xFFD4AF37), // Metallic Gold
       secondary: Color(0xFFB8860B),
       surface: Color(0xFF111111),
-      background: Color(0xFF000000), // Pure Black
+      background: Color(0xFF0D0D0D), // Matte Black
       onBackground: Color(0xFFE0E0E0),
       onSurface: Color(0xFFE0E0E0),
     ),
-    scaffoldBackgroundColor: const Color(0xFF000000),
+    scaffoldBackgroundColor: const Color(0xFF0D0D0D),
     textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme).copyWith(
       displayLarge: GoogleFonts.bebasNeue(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFFD4AF37)),
       headlineMedium: GoogleFonts.montserrat(fontWeight: FontWeight.w900),
@@ -50,7 +50,7 @@ class AppTheme {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.black,
       indicatorColor: const Color(0xFFD4AF37).withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.all(const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+      labelTextStyle: WidgetStateProperty.all(const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
     ),
   );
 
@@ -58,30 +58,41 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: const ColorScheme.dark(
-      primary: Color(0xFF00FFD1), // Aqua Neon
-      secondary: Color(0xFFFF00FF), // Magenta Neon
+      primary: Color(0xFF00FFD1), // Cyan
+      secondary: Color(0xFFFF00FF), // Magenta
       surface: Color(0xFF121212),
-      background: Color(0xFF000000),
+      background: Color(0xFF050505),
+      onBackground: Colors.white,
+      onSurface: Colors.white,
     ),
-    scaffoldBackgroundColor: const Color(0xFF000000),
+    scaffoldBackgroundColor: const Color(0xFF050505),
     textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme).copyWith(
       displayLarge: GoogleFonts.bebasNeue(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFF00FFD1)),
-      headlineMedium: GoogleFonts.montserrat(fontWeight: FontWeight.w900),
-      titleLarge: GoogleFonts.montserrat(fontWeight: FontWeight.bold),
-    ),
-    cardTheme: CardThemeData(
-      color: const Color(0xFF121212),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: GoogleFonts.bebasNeue(
-        fontSize: 32,
-        letterSpacing: 2,
-        color: const Color(0xFF00FFD1),
-      ),
+      titleTextStyle: GoogleFonts.bebasNeue(fontSize: 32, color: const Color(0xFF00FFD1), letterSpacing: 2),
+    ),
+  );
+
+  static final ThemeData deepForest = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    colorScheme: const ColorScheme.dark(
+      primary: Color(0xFF2ECC71), // Emerald
+      secondary: Color(0xFF27AE60),
+      surface: Color(0xFF141D15),
+      background: Color(0xFF0A120B),
+      onBackground: Color(0xFFE0E0E0),
+      onSurface: Color(0xFFE0E0E0),
+    ),
+    scaffoldBackgroundColor: const Color(0xFF0A120B),
+    textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme).copyWith(
+      displayLarge: GoogleFonts.bebasNeue(fontSize: 32, fontWeight: FontWeight.bold, color: const Color(0xFF2ECC71)),
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.transparent,
+      titleTextStyle: GoogleFonts.bebasNeue(fontSize: 32, color: const Color(0xFF2ECC71), letterSpacing: 2),
     ),
   );
 }
@@ -117,5 +128,7 @@ final currentThemeProvider = Provider<ThemeData>((ref) {
       return AppTheme.onyxGold;
     case AppThemeType.cyberpunk:
       return AppTheme.cyberPunk;
+    case AppThemeType.forest:
+      return AppTheme.deepForest;
   }
 });
