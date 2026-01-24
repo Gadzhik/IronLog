@@ -2,7 +2,7 @@ import 'package:isar_community/isar.dart';
 
 part 'exercise.g.dart';
 
-enum ExerciseType { strength, cardio }
+enum ExerciseType { strength, cardio, bodyweight, static }
 
 @collection
 class Exercise {

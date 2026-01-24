@@ -2,10 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
-import 'package:isar_community/isar.dart'; // Ensure Isar import for watch()
+import 'package:isar_community/isar.dart';
 import 'dart:math';
 
-enum ProgressMetric { strengthBestSet, cardioTotal }
+enum ProgressMetric { main, secondary } // Simplified for general metrics
 
 class ProgressDataPoint {
   final DateTime date;
@@ -23,16 +23,10 @@ class ProgressDataPoint {
   });
 }
 
-final progressMetricProvider = StateProvider<ProgressMetric>((ref) => ProgressMetric.strengthBestSet);
-
-// Reactive StreamProvider that watches Isar for any workout session changes
 final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, int>((ref, exerciseId) async* {
   final isarService = ref.read(isarServiceProvider);
-  final metric = ref.watch(progressMetricProvider);
-  
   final db = await isarService.db;
   
-  // Isar watch logic: build the query first, then watch it
   final query = db.workoutSessions.where().sortByStartTime().build();
   
   yield* query.watch(fireImmediately: true).map((sessions) {
@@ -49,19 +43,39 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
           double value = 0;
           double? secondary;
 
-          if (entry.exerciseType == ExerciseType.strength) {
-            for (var s in completedSets) {
-              if (s.weight > value) value = s.weight;
-            }
-          } else {
-            double totalDist = 0;
-            double totalDur = 0;
-            for (var s in completedSets) {
-              totalDist += s.distance;
-              totalDur += s.duration.toDouble();
-            }
-            value = totalDist;
-            secondary = totalDur;
+          switch (entry.exerciseType) {
+            case ExerciseType.strength:
+              // Best Set (Max Weight)
+              for (var s in completedSets) {
+                if (s.weight > value) value = s.weight;
+              }
+              break;
+            case ExerciseType.bodyweight:
+              // Max Reps
+              for (var s in completedSets) {
+                if (s.reps > value) value = s.reps.toDouble();
+                // Optionally track extra weight as secondary
+                if (s.weight > (secondary ?? 0)) secondary = s.weight;
+              }
+              break;
+            case ExerciseType.static:
+              // Max Time (duration is held time in seconds, we convert to minutes for the chart)
+              for (var s in completedSets) {
+                double mins = s.duration / 60.0;
+                if (mins > value) value = mins;
+              }
+              break;
+            case ExerciseType.cardio:
+              // Total Distance (km) and Total Time
+              double totalDist = 0;
+              double totalDur = 0;
+              for (var s in completedSets) {
+                totalDist += s.distance;
+                totalDur += s.duration.toDouble();
+              }
+              value = totalDist;
+              secondary = totalDur;
+              break;
           }
 
           if (value > 0 || (secondary != null && secondary > 0)) {
@@ -76,7 +90,6 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
       }
     }
 
-    // Sort by date and calculate improvements
     points.sort((a, b) => a.date.compareTo(b.date));
 
     List<ProgressDataPoint> finalized = [];

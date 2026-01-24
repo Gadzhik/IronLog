@@ -109,7 +109,7 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ExpansionTile(
                   title: Text(cat!.toUpperCase(), style: GoogleFonts.bebasNeue(fontSize: 20, letterSpacing: 1.5)),
-                  initiallyExpanded: false, // Collapsed by default
+                  initiallyExpanded: false,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -168,8 +168,6 @@ class _ExerciseDetailView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(progressStreamProvider(exercise.id));
-    final metric = ref.watch(progressMetricProvider);
-    final isCardio = exercise.type == ExerciseType.cardio;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -190,7 +188,7 @@ class _ExerciseDetailView extends ConsumerWidget {
                   style: GoogleFonts.bebasNeue(fontSize: 32, color: Theme.of(context).colorScheme.primary, letterSpacing: 1.5)
                 ),
                 Text(
-                  exercise.category?.toUpperCase() ?? 'ПРОЧЕЕ',
+                  '${exercise.category?.toUpperCase() ?? 'ПРОЧЕЕ'} | ${_getTypeLabel(exercise.type)}',
                   style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 2),
                 ),
               ],
@@ -210,7 +208,7 @@ class _ExerciseDetailView extends ConsumerWidget {
               data: (data) => ProgressChartWidget(
                 data: data, 
                 themeColor: Theme.of(context).colorScheme.primary,
-                isCardio: isCardio,
+                type: exercise.type,
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, _) => Center(child: Text('Ошибка: $err')),
@@ -220,7 +218,7 @@ class _ExerciseDetailView extends ConsumerWidget {
           const SizedBox(height: 24),
           historyAsync.when(
             data: (data) => data.isNotEmpty 
-              ? _LatestMetricCard(point: data.last, isCardio: isCardio)
+              ? _LatestMetricCard(point: data.last, type: exercise.type)
               : const SizedBox.shrink(),
             loading: () => const SizedBox.shrink(),
             error: (_,__) => const SizedBox.shrink(),
@@ -229,13 +227,22 @@ class _ExerciseDetailView extends ConsumerWidget {
       ),
     );
   }
+
+  String _getTypeLabel(ExerciseType type) {
+    switch (type) {
+      case ExerciseType.strength: return 'СИЛОВОЕ';
+      case ExerciseType.bodyweight: return 'СО СВОИМ ВЕСОМ';
+      case ExerciseType.cardio: return 'КАРДИО';
+      case ExerciseType.static: return 'СТАТИКА';
+    }
+  }
 }
 
 class _LatestMetricCard extends StatelessWidget {
   final ProgressDataPoint point;
-  final bool isCardio;
+  final ExerciseType type;
 
-  const _LatestMetricCard({required this.point, required this.isCardio});
+  const _LatestMetricCard({required this.point, required this.type});
 
   @override
   Widget build(BuildContext context) {
@@ -266,9 +273,14 @@ class _LatestMetricCard extends StatelessWidget {
                 Text('ПОСЛЕДНИЙ РЕЗУЛЬТАТ', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
                 const SizedBox(height: 4),
                 Text(
-                  '${point.value.toInt()} ${isCardio ? 'КМ' : 'КГ'}', 
+                  '${point.value.toInt()} ${_getUnit()}', 
                   style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 1)
                 ),
+                if (point.secondaryValue != null && point.secondaryValue! > 0)
+                  Text(
+                    '+ ${point.secondaryValue!.toInt()} ${_getSecondaryUnit()}', 
+                    style: GoogleFonts.bebasNeue(fontSize: 20, color: Theme.of(context).colorScheme.primary.withOpacity(0.7), letterSpacing: 1)
+                  ),
               ],
             ),
           ),
@@ -287,5 +299,22 @@ class _LatestMetricCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getUnit() {
+    switch (type) {
+      case ExerciseType.strength: return 'КГ';
+      case ExerciseType.bodyweight: return 'ПОВТ';
+      case ExerciseType.cardio: return 'КМ';
+      case ExerciseType.static: return 'МИН';
+    }
+  }
+
+  String _getSecondaryUnit() {
+    switch (type) {
+      case ExerciseType.bodyweight: return 'КГ';
+      case ExerciseType.cardio: return 'МИН';
+      default: return '';
+    }
   }
 }

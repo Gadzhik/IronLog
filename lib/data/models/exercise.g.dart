@@ -134,10 +134,14 @@ P _exerciseDeserializeProp<P>(
 const _ExercisetypeEnumValueMap = {
   'strength': 0,
   'cardio': 1,
+  'bodyweight': 2,
+  'static': 3,
 };
 const _ExercisetypeValueEnumMap = {
   0: ExerciseType.strength,
   1: ExerciseType.cardio,
+  2: ExerciseType.bodyweight,
+  3: ExerciseType.static,
 };
 
 Id _exerciseGetId(Exercise object) {

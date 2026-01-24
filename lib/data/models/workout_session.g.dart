@@ -1416,10 +1416,14 @@ P _workoutEntryDeserializeProp<P>(
 const _WorkoutEntryexerciseTypeEnumValueMap = {
   'strength': 0,
   'cardio': 1,
+  'bodyweight': 2,
+  'static': 3,
 };
 const _WorkoutEntryexerciseTypeValueEnumMap = {
   0: ExerciseType.strength,
   1: ExerciseType.cardio,
+  2: ExerciseType.bodyweight,
+  3: ExerciseType.static,
 };
 
 extension WorkoutEntryQueryFilter

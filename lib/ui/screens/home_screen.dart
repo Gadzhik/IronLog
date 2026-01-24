@@ -112,21 +112,24 @@ class HistoryTab extends ConsumerWidget {
                 child: Dismissible(
                   key: ValueKey(session.id),
                   direction: DismissDirection.horizontal,
-                  // Fix: Providing mandatory background widgets for swiping
                   background: Container(
                     alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      gradient: LinearGradient(
+                        colors: [Theme.of(context).colorScheme.primary.withOpacity(0.2), Colors.transparent],
+                      ),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Icon(LucideIcons.eye, color: Theme.of(context).colorScheme.primary),
                   ),
                   secondaryBackground: Container(
                     alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      gradient: LinearGradient(
+                        colors: [Colors.transparent, Colors.red.withOpacity(0.2)],
+                      ),
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: const Icon(LucideIcons.trash2, color: Colors.red),

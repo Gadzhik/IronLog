@@ -57,10 +57,19 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       if (entry.sets.isEmpty) return false;
       for (var set in entry.sets) {
         if (!set.isCompleted) return false;
-        if (entry.exerciseType == ExerciseType.strength) {
-           if (set.weight <= 0 || set.reps <= 0) return false;
-        } else {
-           if (set.duration <= 0 && set.distance <= 0) return false;
+        switch (entry.exerciseType) {
+          case ExerciseType.strength:
+            if (set.weight <= 0 || set.reps <= 0) return false;
+            break;
+          case ExerciseType.bodyweight:
+            if (set.reps <= 0) return false;
+            break;
+          case ExerciseType.cardio:
+            if (set.duration <= 0 || set.distance <= 0) return false;
+            break;
+          case ExerciseType.static:
+            if (set.duration <= 0) return false;
+            break;
         }
       }
     }
@@ -87,7 +96,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               if (!canFinish) {
                  HapticFeedback.vibrate();
                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Заполните вес и повторения для всех подходов'))
+                    const SnackBar(content: Text('Заполните все данные для завершения'))
                  );
                  return;
               }
@@ -197,7 +206,6 @@ class ExerciseEntryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isCardio = entry.exerciseType == ExerciseType.cardio;
     final lastPerfAsync = ref.watch(lastPerformanceProvider(entry.exerciseId ?? -1));
 
     return Container(
@@ -246,7 +254,9 @@ class ExerciseEntryCard extends ConsumerWidget {
             entryIndex: entryIndex, 
             setIndex: e.key, 
             set: e.value, 
-            isCardio: isCardio,
+            type: entry.exerciseType,
+            exerciseName: entry.exerciseName ?? '',
+            exerciseCategory: entry.exerciseCategory ?? '',
           )),
           const SizedBox(height: 8),
           TextButton.icon(
@@ -267,14 +277,18 @@ class ExerciseSetRow extends ConsumerStatefulWidget {
   final int entryIndex;
   final int setIndex;
   final WorkoutSet set;
-  final bool isCardio;
+  final ExerciseType type;
+  final String exerciseName;
+  final String exerciseCategory;
 
   const ExerciseSetRow({
     super.key, 
     required this.entryIndex, 
     required this.setIndex, 
     required this.set, 
-    required this.isCardio,
+    required this.type,
+    required this.exerciseName,
+    required this.exerciseCategory,
   });
 
   @override
@@ -288,29 +302,101 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
   @override
   void initState() {
     super.initState();
-    _col1Controller = TextEditingController(text: _format(widget.isCardio ? widget.set.distance : widget.set.weight));
-    _col2Controller = TextEditingController(text: _format(widget.isCardio ? widget.set.duration : widget.set.reps));
+    _col1Controller = TextEditingController(text: _getInitialValue1());
+    _col2Controller = TextEditingController(text: _getInitialValue2());
   }
 
-  String _format(num val) => val == 0 ? '' : val.toInt().toString();
+  String _getInitialValue1() {
+    // NAME-BASED LOGIC (STRICT)
+    if (widget.exerciseName == 'Планка') {
+       return widget.set.duration == 0 ? '' : (widget.set.duration ~/ 60).toString();
+    }
+    
+    if (widget.exerciseCategory == 'Пресс' || 
+        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+       return widget.set.reps == 0 ? '' : widget.set.reps.toString();
+    }
+
+    switch (widget.type) {
+      case ExerciseType.strength: return widget.set.weight == 0 ? '' : widget.set.weight.toInt().toString();
+      case ExerciseType.bodyweight: return widget.set.reps == 0 ? '' : widget.set.reps.toString();
+      case ExerciseType.cardio: return widget.set.distance == 0 ? '' : widget.set.distance.toInt().toString();
+      case ExerciseType.static: return widget.set.duration == 0 ? '' : (widget.set.duration ~/ 60).toString();
+    }
+  }
+
+  String _getInitialValue2() {
+    if (widget.exerciseName == 'Планка') return '';
+    if (widget.exerciseCategory == 'Пресс' || 
+        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+       return '';
+    }
+
+    switch (widget.type) {
+      case ExerciseType.strength: return widget.set.reps == 0 ? '' : widget.set.reps.toString();
+      case ExerciseType.bodyweight: return ''; 
+      case ExerciseType.cardio: return widget.set.duration == 0 ? '' : widget.set.duration.toString();
+      case ExerciseType.static: return ''; 
+    }
+  }
 
   void _save() {
      final v1 = double.tryParse(_col1Controller.text) ?? 0;
      final v2 = int.tryParse(_col2Controller.text) ?? 0;
-     if (widget.isCardio) {
-       ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, distance: v1, duration: v2);
-     } else {
-       ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, weight: v1, reps: v2);
+     
+     // NAME-BASED SAVE LOGIC
+     if (widget.exerciseName == 'Планка') {
+        ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, duration: (v1 * 60).toInt());
+        return;
+     }
+
+     if (widget.exerciseCategory == 'Пресс' || 
+         ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+        ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, reps: v1.toInt());
+        return;
+     }
+
+     switch (widget.type) {
+       case ExerciseType.strength:
+         ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, weight: v1, reps: v2);
+         break;
+       case ExerciseType.bodyweight:
+         ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, reps: v1.toInt());
+         break;
+       case ExerciseType.cardio:
+         ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, distance: v1, duration: v2);
+         break;
+       case ExerciseType.static:
+         ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, duration: (v1 * 60).toInt());
+         break;
      }
   }
 
   @override
   Widget build(BuildContext context) {
     bool hasValue = false;
-    if (widget.isCardio) {
-       hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 || (int.tryParse(_col2Controller.text) ?? 0) > 0;
+    
+    // VALIDATION LOGIC (STRICT)
+    if (widget.exerciseName == 'Планка') {
+       hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0;
+    } else if (widget.exerciseCategory == 'Пресс' || 
+               ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+       hasValue = (int.tryParse(_col1Controller.text) ?? 0) > 0;
     } else {
-       hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 && (int.tryParse(_col2Controller.text) ?? 0) > 0;
+      switch (widget.type) {
+        case ExerciseType.strength:
+          hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 && (int.tryParse(_col2Controller.text) ?? 0) > 0;
+          break;
+        case ExerciseType.bodyweight:
+          hasValue = (int.tryParse(_col1Controller.text) ?? 0) > 0;
+          break;
+        case ExerciseType.cardio:
+          hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 && (int.tryParse(_col2Controller.text) ?? 0) > 0;
+          break;
+        case ExerciseType.static:
+          hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0;
+          break;
+      }
     }
 
     return Padding(
@@ -318,13 +404,14 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
       child: Row(
         children: [
           Container(
-            width: 24,
-            height: 24,
+            width: 24, height: 24,
             decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
             alignment: Alignment.center,
             child: Text('${widget.setIndex + 1}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
           ),
           const SizedBox(width: 8),
+          
+          // Field 1
           Expanded(
             child: TextField(
               controller: _col1Controller,
@@ -332,26 +419,42 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
               decoration: InputDecoration(
-                hintText: widget.isCardio ? 'КМ' : 'КГ',
+                hintText: _getHint1(),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               ),
               onChanged: (_) => _save(),
             ),
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: TextField(
-              controller: _col2Controller,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: widget.isCardio ? 'МИН' : 'ПОВТ',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          
+          // Field 2 (Optional/Type-based)
+          if ((widget.type == ExerciseType.strength || widget.type == ExerciseType.cardio) && 
+              widget.exerciseName != 'Планка' && 
+              widget.exerciseCategory != 'Пресс' && 
+              !['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) ...[
+            const SizedBox(width: 4),
+            Expanded(
+              child: TextField(
+                controller: _col2Controller,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: _getHint2(),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                ),
+                onChanged: (_) => _save(),
               ),
-              onChanged: (_) => _save(),
             ),
-          ),
+          ],
+
+          // Special case for Bodyweight: Second field is Reps, but it's the PRIMARY field.
+          // In the current architecture, Field 1 is used for Weight/Dist/Time.
+          // Let's swap or clarify:
+          // Strength: F1(KG), F2(REPS)
+          // Cardio: F1(KM), F2(MIN)
+          // Static: F1(SEC), no F2
+          // Bodyweight: F1(REPS), no F2 (As per "ONLY Reps" requirement)
+
           const SizedBox(width: 4),
           IconButton(
             icon: Icon(
@@ -369,7 +472,7 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                   if (!hasValue) {
                      HapticFeedback.vibrate();
                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Заполните данные для всех подходов'))
+                        const SnackBar(content: Text('Заполните обязательные поля'))
                      );
                      return;
                   }
@@ -389,5 +492,35 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
         ],
       ),
     );
+  }
+
+  String _getHint1() {
+    if (widget.exerciseName == 'Планка') return 'МИН';
+    if (widget.exerciseCategory == 'Пресс' || 
+        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+       return 'ПОВТ';
+    }
+
+    switch (widget.type) {
+      case ExerciseType.strength: return 'КГ';
+      case ExerciseType.bodyweight: return 'ПОВТ';
+      case ExerciseType.cardio: return 'КМ';
+      case ExerciseType.static: return 'МИН';
+    }
+  }
+
+  String _getHint2() {
+    if (widget.exerciseName == 'Планка') return '';
+    if (widget.exerciseCategory == 'Пресс' || 
+        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+       return '';
+    }
+
+    switch (widget.type) {
+      case ExerciseType.strength: return 'ПОВТ';
+      case ExerciseType.bodyweight: return '';
+      case ExerciseType.cardio: return 'МИН';
+      case ExerciseType.static: return '';
+    }
   }
 }
