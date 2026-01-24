@@ -5,6 +5,7 @@ import 'package:iron_log/data/models/workout_session.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/ui/screens/active_session_screen.dart';
 import 'package:iron_log/ui/screens/stats_screen.dart';
+import 'package:iron_log/ui/screens/workout_detail_screen.dart';
 // ignore: depend_on_referenced_packages
 // import 'package:share_plus/share_plus.dart'; 
 // Note: Share Plus not in deps, need to add or mock. 
@@ -120,9 +121,9 @@ class HistoryTab extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history, size: 64, color: Colors.grey[800]),
-                  const SizedBox(height: 16),
-                  const Text('Нет тренировок', style: TextStyle(color: Colors.grey)),
+                   Icon(Icons.history, size: 64, color: Colors.grey[800]),
+                   const SizedBox(height: 16),
+                   const Text('Нет тренировок', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             );
@@ -145,7 +146,13 @@ class HistoryTab extends ConsumerWidget {
                 onDismissed: (_) {
                   ref.read(isarServiceProvider).deleteWorkout(session.id);
                 },
-                child: WorkoutHistoryCard(session: session),
+                child: GestureDetector(
+                  onTap: () {
+                    // Feature: Read-only Detail View
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
+                  },
+                  child: WorkoutHistoryCard(session: session),
+                ),
               );
             },
           );

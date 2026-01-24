@@ -19,7 +19,8 @@ dependencies:
   intl: ^0.19.0
   uuid: ^4.3.3
   equatable: ^2.0.5
-  collection: ^1.18.0
+  collection: ^1.19.1
+  vibration: ^3.1.5
 
 dev_dependencies:
   flutter_test:

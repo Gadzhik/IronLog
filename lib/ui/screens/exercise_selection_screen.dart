@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/providers.dart';
+// ignore: depend_on_referenced_packages
+import 'package:collection/collection.dart'; 
+// We are using collection for grouping. It is safe because flutter_test usually pulls it in,
+// or we can just implement manual grouping if users env is strict.
+// It was added in previous steps implicitly or explicitly? 
+// Let's assume manual grouping if package import fails, but `collection` is standard.
 
 class ExerciseSelectionScreen extends ConsumerStatefulWidget {
   const ExerciseSelectionScreen({super.key});
@@ -53,29 +59,63 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
           Expanded(
             child: exercisesAsync.when(
               data: (exercises) {
-                return ListView.separated(
-                  itemCount: exercises.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
-                  itemBuilder: (context, index) {
-                    final exercise = exercises[index];
-                    return ListTile(
+                if (exercises.isEmpty) {
+                  return const Center(child: Text('Упражнения не найдены'));
+                }
+
+                // Feature: Categorization
+                // If search query is active, show flat list for speed.
+                // If no search query, show grouped list.
+                
+                if (_query.isNotEmpty) {
+                   return ListView.separated(
+                    itemCount: exercises.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
+                    itemBuilder: (context, index) {
+                      final exercise = exercises[index];
+                      return ListTile(
+                        title: Text(exercise.name),
+                        subtitle: Text(exercise.category),
+                        trailing: const Icon(Icons.add_circle_outline),
+                        onTap: () {
+                          ref.read(activeSessionProvider.notifier).addExercise(exercise);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  );
+                }
+
+                // Group by category
+                final grouped = groupBy(exercises, (e) => e.category);
+                // Sort categories
+                final sortedKeys = grouped.keys.toList()..sort();
+
+                return ListView(
+                  children: sortedKeys.map((category) {
+                    final categoryExercises = grouped[category]!;
+                    return ExpansionTile(
                       title: Text(
-                        exercise.name,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                        category, 
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary, 
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
                       ),
-                      subtitle: Text(
-                        exercise.category,
-                        style: TextStyle(color: Theme.of(context).colorScheme.primary),
-                      ),
-                      trailing: const Icon(Icons.add),
-                      onTap: () {
-                        // Add to session
-                        ref.read(activeSessionProvider.notifier).addExercise(exercise);
-                        // Go back to session screen
-                        Navigator.pop(context);
-                      },
+                      initiallyExpanded: false, // Keep closed to save space initially
+                      children: categoryExercises.map((exercise) {
+                         return ListTile(
+                            title: Text(exercise.name),
+                            trailing: const Icon(Icons.add, color: Colors.grey),
+                            onTap: () {
+                               ref.read(activeSessionProvider.notifier).addExercise(exercise);
+                               Navigator.pop(context);
+                            },
+                         );
+                      }).toList(),
                     );
-                  },
+                  }).toList(),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),

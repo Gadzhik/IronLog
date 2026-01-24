@@ -49,7 +49,7 @@ class IsarService {
       add('Пресс', ['Скручивания', 'Подъем ног в висе', 'Планка', '"Книжка"']);
       
       // Feature: Cardio
-      addCardio('Кардио', ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля']);
+      addCardio('Кардио', ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк']);
 
       await isar.writeTxn(() async {
         await isar.exercises.putAll(exercises);
