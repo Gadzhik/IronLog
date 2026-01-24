@@ -175,40 +175,43 @@ class IsarService {
   // Stats
   Future<List<Map<String, dynamic>>> getMaxWeightHistory(int exerciseId, {DateTime? after}) async {
     final isar = await db;
-    // Fix: Accurate Date Query
-    // We want sessions where startTime >= after (if after is provided)
-    // "Isar searches from 00:00:00 to 23:59:59"
     
-    // Fix: Dynamic dispatch of extension method error
-    // We must call .findAll() on the typed builder directly or cast it. using separate branches is cleanest.
-    
-    List<WorkoutSession> sessions;
+    // Fix: Explicitly typed query to avoid NoSuchMethodError
+    QueryBuilder<WorkoutSession, WorkoutSession, QAfterSortBy> query;
     
     if (after != null) {
-      // Ensure we start from the beginning of the 'after' day
       final startOfDay = DateTime(after.year, after.month, after.day);
-      sessions = await isar.workoutSessions.filter().startTimeGreaterThan(startOfDay, include: true).sortByStartTime().findAll();
+      query = isar.workoutSessions
+        .filter()
+        .startTimeGreaterThan(startOfDay, include: true)
+        .sortByStartTime();
     } else {
-      sessions = await isar.workoutSessions.where().sortByStartTime().findAll();
+      query = isar.workoutSessions.where().sortByStartTime();
     }
     
-    List<Map<String, dynamic>> history = [];
+    final sessions = await query.findAll();
+    final List<Map<String, dynamic>> history = [];
     
     for (var session in sessions) {
       for (var entry in session.entries) {
+        // Fix: Use a safer comparison if exerciseId might be null
         if (entry.exerciseId == exerciseId) {
-          if (entry.exerciseType == ExerciseType.cardio) {
-             // For cardio maybe track max distance or duration?
-             // Let's skip chart for cardio or use duration 
-             continue;
+          double maxW = 0;
+          bool hasCompletedSet = false;
+          
+          for (var set in entry.sets) {
+             if (set.isCompleted) {
+                hasCompletedSet = true;
+                if (set.weight > maxW) maxW = set.weight;
+             }
           }
           
-          double maxW = 0;
-          for (var set in entry.sets) {
-             if (set.weight > maxW) maxW = set.weight;
-          }
-          if (maxW > 0) {
-            history.add({'date': session.startTime, 'weight': maxW});
+          if (hasCompletedSet) {
+            // Even if maxW is 0 (bodyweight), we should record the progress point
+            history.add({
+              'date': session.startTime, 
+              'weight': maxW,
+            });
           }
         }
       }

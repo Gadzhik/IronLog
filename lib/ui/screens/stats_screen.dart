@@ -40,26 +40,34 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Прогресс'),
+        title: Text('Прогресс', style: Theme.of(context).appBarTheme.titleTextStyle),
         leading: _selectedExercise != null 
           ? IconButton(
               icon: const Icon(LucideIcons.chevronLeft), 
-              onPressed: () => setState(() => _selectedExercise = null)
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                setState(() => _selectedExercise = null);
+              }
             ) 
           : null,
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 400),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
         child: _selectedExercise == null 
           ? exercisesAsync.when(
               data: (exercises) => _ExerciseListView(
                 exercises: exercises, 
-                onSelect: (e) => setState(() => _selectedExercise = e)
+                onSelect: (e) {
+                  HapticFeedback.lightImpact();
+                  setState(() => _selectedExercise = e);
+                }
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Center(child: Text('Error: $err')),
+              error: (err, _) => Center(child: Text('Ошибка: $err')),
             )
-          : _ExerciseDetailView(exercise: _selectedExercise!),
+          : _ExerciseDetailView(exercise: _selectedExercise!, key: ValueKey(_selectedExercise!.id)),
       ),
     );
   }
@@ -90,44 +98,42 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: TextField(
             decoration: const InputDecoration(
               hintText: 'Поиск упражнения...',
-              prefixIcon: Icon(LucideIcons.search),
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              prefixIcon: Icon(LucideIcons.search, size: 20),
             ),
             onChanged: (val) => setState(() => _query = val),
           ),
         ),
         Expanded(
           child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 24),
             itemCount: keys.length,
             itemBuilder: (context, index) {
               final cat = keys[index];
               final items = grouped[cat]!;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      cat, 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 14,
-                      )
-                    ),
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: ExpansionTile(
+                    backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.5),
+                    collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
+                    collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
+                    initiallyExpanded: false, // Requirement: Collapsed by default
+                    leading: Icon(_getCategoryIcon(cat), size: 20, color: Theme.of(context).colorScheme.primary),
+                    title: Text(cat, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    children: items.map((e) => ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                      title: Text(e.name, style: const TextStyle(fontSize: 14)),
+                      trailing: const Icon(LucideIcons.chevronRight, size: 16, color: Colors.grey),
+                      onTap: () => widget.onSelect(e),
+                    )).toList(),
                   ),
-                  ...items.map((e) => ListTile(
-                    leading: const Icon(LucideIcons.dumbbell, size: 20),
-                    title: Text(e.name),
-                    trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                    onTap: () => widget.onSelect(e),
-                  )),
-                  const Divider(indent: 16, endIndent: 16, height: 1),
-                ],
+                ),
               );
             },
           ),
@@ -135,28 +141,57 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
       ],
     );
   }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'грудь': return LucideIcons.circleDot;
+      case 'спина': return LucideIcons.layers;
+      case 'ноги': return LucideIcons.footprints;
+      case 'плечи': return LucideIcons.moveUp;
+      case 'руки': return LucideIcons.dumbbell;
+      case 'кардио': return LucideIcons.heartPulse;
+      default: return LucideIcons.dumbbell;
+    }
+  }
 }
 
 class _ExerciseDetailView extends StatelessWidget {
   final Exercise exercise;
-  const _ExerciseDetailView({required this.exercise});
+  const _ExerciseDetailView({required this.exercise, super.key});
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            exercise.name, 
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)
+          Hero(
+            tag: 'ex_${exercise.id}',
+            child: Material(
+              color: Colors.transparent,
+              child: Text(
+                exercise.name, 
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onBackground
+                )
+              ),
+            ),
           ),
-          Text(exercise.category, style: TextStyle(color: Theme.of(context).hintColor)),
-          const SizedBox(height: 24),
+          const SizedBox(height: 4),
+          Text(
+            exercise.category.toUpperCase(), 
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary, 
+              fontWeight: FontWeight.bold, 
+              fontSize: 12, 
+              letterSpacing: 1.2
+            )
+          ),
+          const SizedBox(height: 32),
           _ChartSection(exercise: exercise),
-          const SizedBox(height: 24),
-          // History list could go here if needed...
+          const SizedBox(height: 32),
         ],
       ),
     );
@@ -173,26 +208,51 @@ class _ChartSection extends ConsumerWidget {
 
     return historyAsync.when(
       data: (data) {
-        if (data.isEmpty) return const Center(child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: Text('Нет данных для прогресса'),
-        ));
+        if (data.isEmpty) return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(48.0),
+            child: Column(
+              children: [
+                Icon(LucideIcons.barChart2, size: 48, color: Theme.of(context).dividerColor),
+                const SizedBox(height: 16),
+                const Text('Нет данных для прогресса', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
+        );
 
         data.sort((a, b) => (a['date'] as DateTime).compareTo(b['date']));
 
-        return Column(
-          children: [
-            SizedBox(
-              height: 300,
-              child: _AnimatedLineChart(data: data),
-            ),
-            const SizedBox(height: 16),
-            const Text('Максимальный вес по датам', style: TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              )
+            ]
+          ),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 320,
+                child: _AnimatedLineChart(data: data),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Прогресс максимального веса', 
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).hintColor)
+              ),
+            ],
+          ),
         );
       },
       loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
-      error: (err, _) => Text('Error: $err'),
+      error: (err, _) => Text('Ошибка: $err'),
     );
   }
 }
@@ -212,8 +272,8 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTicke
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOutExpo);
     _controller.forward();
   }
 
@@ -229,10 +289,11 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTicke
       animation: _animation,
       builder: (context, child) {
         final spots = widget.data.asMap().entries.map((e) {
+          // Multiply weight by animation value for draw-in effect
           return FlSpot(e.key.toDouble(), (e.value['weight'] as num).toDouble() * _animation.value);
         }).toList();
 
-        double maxY = (widget.data.map((e) => (e['weight'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.2;
+        double maxY = (widget.data.map((e) => (e['weight'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.25;
         if (maxY == 0) maxY = 10;
 
         String format(double val) => val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(1);
@@ -244,7 +305,10 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTicke
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              getDrawingHorizontalLine: (val) => FlLine(color: Theme.of(context).dividerColor.withOpacity(0.05)),
+              getDrawingHorizontalLine: (val) => FlLine(
+                color: Theme.of(context).dividerColor.withOpacity(0.05),
+                strokeWidth: 1,
+              ),
             ),
             titlesData: FlTitlesData(
               bottomTitles: AxisTitles(
@@ -256,8 +320,11 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTicke
                     final i = val.toInt();
                     if (i >= 0 && i < widget.data.length && (widget.data.length < 5 || i % (widget.data.length ~/ 4) == 0)) {
                       return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(DateFormat('d.MM').format(widget.data[i]['date']), style: const TextStyle(fontSize: 10)),
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(
+                          DateFormat('d.MM').format(widget.data[i]['date']), 
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).hintColor)
+                        ),
                       );
                     }
                     return const SizedBox.shrink();
@@ -267,8 +334,11 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTicke
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  reservedSize: 40,
-                  getTitlesWidget: (val, meta) => Text(format(val), style: const TextStyle(fontSize: 10)),
+                  reservedSize: 45,
+                  getTitlesWidget: (val, meta) => Text(
+                    format(val), 
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).hintColor)
+                  ),
                 ),
               ),
               topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -279,27 +349,46 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTicke
               LineChartBarData(
                 spots: spots,
                 isCurved: true,
+                curveSmoothness: 0.4,
                 color: Theme.of(context).colorScheme.primary,
-                barWidth: 4,
+                barWidth: 6,
+                isStrokeCapRound: true,
                 dotData: FlDotData(
                   show: true,
                   getDotPainter: (spot, p, bar, i) => FlDotCirclePainter(
-                    radius: 4, 
+                    radius: 5, 
                     color: Theme.of(context).scaffoldBackgroundColor, 
                     strokeColor: Theme.of(context).colorScheme.primary, 
-                    strokeWidth: 2
+                    strokeWidth: 3
                   ),
                 ),
                 belowBarData: BarAreaData(
                   show: true,
                   gradient: LinearGradient(
-                    colors: [Theme.of(context).colorScheme.primary.withOpacity(0.2), Colors.transparent],
+                    colors: [
+                      Theme.of(context).colorScheme.primary.withOpacity(0.3), 
+                      Theme.of(context).colorScheme.primary.withOpacity(0.0)
+                    ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
                 ),
               ),
             ],
+            lineTouchData: LineTouchData(
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
+                tooltipRoundedRadius: 12,
+                getTooltipItems: (touchedSpots) {
+                  return touchedSpots.map((s) {
+                    return LineTooltipItem(
+                      '${format(s.y / _animation.value)} кг',
+                      TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800),
+                    );
+                  }).toList();
+                }
+              ),
+            ),
           ),
           duration: const Duration(milliseconds: 0),
         );
