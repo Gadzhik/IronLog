@@ -60,15 +60,17 @@ class IsarService {
        // If running on existing DB, existing exercises might have null type or default index. 
        // Since the field has a default value, Isar handles it on next read/write.
        
-       // Let's ensure Cardio exists if update
-       final hasCardio = await isar.exercises.filter().categoryEqualTo('Кардио').isNotEmpty();
-       if (!hasCardio) {
-          final cardios = ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк', 'Степпер'].map(
-            (n) => Exercise()..name = n..category = 'Кардио'..type = ExerciseType.cardio
-          ).toList();
-          await isar.writeTxn(() async {
-            await isar.exercises.putAll(cardios);
-          });
+       // Feature: Ensure Cardio exercises exist (Migration)
+       final cardios = ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк', 'Степпер'];
+       
+       for (var name in cardios) {
+          final count = await isar.exercises.filter().nameEqualTo(name).count();
+          if (count == 0) {
+             final exercise = Exercise()..name = name..category = 'Кардио'..type = ExerciseType.cardio;
+             await isar.writeTxn(() async {
+               await isar.exercises.put(exercise);
+             });
+          }
        }
     }
   }

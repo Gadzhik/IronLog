@@ -83,8 +83,13 @@ class WorkoutDetailScreen extends StatelessWidget {
                           child: Row(
                              children: [
                                SizedBox(width: 30, child: Text('$i', style: const TextStyle(fontWeight: FontWeight.bold))),
-                               Expanded(child: Text(isCardio ? '${s.distance} км' : '${s.weight} кг')),
-                               Expanded(child: Text(isCardio ? '${s.duration} с' : '${s.reps}')),
+                               // Feature: Integer Formatting
+                               Expanded(child: Text(isCardio 
+                                  ? '${s.distance % 1 == 0 ? s.distance.toInt() : s.distance} км' 
+                                  : '${s.weight % 1 == 0 ? s.weight.toInt() : s.weight} кг')),
+                               Expanded(child: Text(isCardio 
+                                  ? '${s.duration} с' 
+                                  : '${s.reps}')),
                              ],
                           ),
                         );

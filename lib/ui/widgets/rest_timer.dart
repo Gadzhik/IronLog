@@ -3,19 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
 
-class RestTimerButton extends StatefulWidget {
-  const RestTimerButton({super.key});
+class RestTimerOverlay extends StatefulWidget {
+  final Widget child;
+  const RestTimerOverlay({super.key, required this.child});
+
+  static RestTimerOverlayState of(BuildContext context) {
+    return context.findAncestorStateOfType<RestTimerOverlayState>()!;
+  }
 
   @override
-  State<RestTimerButton> createState() => _RestTimerButtonState();
+  State<RestTimerOverlay> createState() => RestTimerOverlayState();
 }
 
-class _RestTimerButtonState extends State<RestTimerButton> {
+class RestTimerOverlayState extends State<RestTimerOverlay> {
   Timer? _timer;
   int _secondsRemaining = 0;
   final AudioPlayer _player = AudioPlayer();
-  
-  // Feature: Pre-End Alert
   bool _alertTriggered = false;
 
   void startTimer(int seconds) {
@@ -30,38 +33,33 @@ class _RestTimerButtonState extends State<RestTimerButton> {
           _secondsRemaining--;
         });
         
-        // Feature: Pre-finish Alert (10 seconds)
+        // Critical: Alert at 10s
         if (_secondsRemaining == 10 && !_alertTriggered) {
            _alertTriggered = true;
-           // Vibrate
            bool? hasVibrator = await Vibration.hasVibrator();
            if (hasVibrator == true) {
              Vibration.vibrate(duration: 500); 
            }
-           // Sound
-           // Since we don't have local assets guaranteed, we can try playing a system sound or short beep URL if offline? Use system preference?
-           // audioplayers can play from asset. Let's assume we don't have assets.
-           // Actually, 'audioplayers' usually needs an asset.
-           // However, let's keep it simple. If we had an asset 'assets/beep.mp3' we would play it.
-           // Since we can't bundle assets easily in this env without creating file, 
-           // let's rely on vibration heavily, and maybe try to play a default notification via some other means?
-           // Or creating a dummy asset? 
-           // I'll stick to Vibration + Visual Flashing if possible. 
-           // But prompt asked for "sound". 
-           // I will comment out the actual play call to avoid runtime error if file missing, 
-           // but provide the code structure.
-           // _player.play(AssetSource('sounds/beep.mp3'));
+           // Attempt to play sound
+           try {
+             await _player.play(AssetSource('sounds/alert.mp3'));
+           } catch (e) {
+             // Ignore if asset missing
+           }
         }
       } else {
         timer.cancel();
-        // Vibrate on finish
         bool? hasVibrator = await Vibration.hasVibrator();
          if (hasVibrator == true) {
            Vibration.vibrate(pattern: [0, 500, 200, 500]); 
          }
-         // _player.play(AssetSource('sounds/alarm.mp3'));
       }
     });
+  }
+  
+  void cancelTimer() {
+    _timer?.cancel();
+    setState(() => _secondsRemaining = 0);
   }
 
   @override
@@ -71,12 +69,157 @@ class _RestTimerButtonState extends State<RestTimerButton> {
     super.dispose();
   }
 
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+       children: [
+         widget.child,
+         if (_secondsRemaining > 0 && _secondsRemaining <= 10)
+           Positioned.fill(
+             child: Container(
+               color: Colors.black45,
+               alignment: Alignment.center,
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   const Text(
+                     'ПРИГОТОВИТЬСЯ', 
+                     style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.redAccent, shadows: [
+                       Shadow(blurRadius: 10, color: Colors.black)
+                     ])
+                   ),
+                   Text(
+                     '$_secondsRemaining',
+                     style: const TextStyle(fontSize: 80, fontWeight: FontWeight.bold, color: Colors.white),
+                   )
+                 ],
+               ),
+             ),
+           ),
+       ],
+    );
+  }
+  
+  // Public getter to check state
+  bool get isActive => _secondsRemaining > 0;
+  int get seconds => _secondsRemaining;
+}
+
+class RestTimerButton extends StatelessWidget {
+  const RestTimerButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // We assume this is inside RestTimerOverlay. But wait, ActiveSessionScreen uses it directly.
+    // It's better to make RestTimerButton control the Overlay state via context if possible, 
+    // OR we make RestTimerButton completely stand-alone but use an OverlayEntry.
+    // Given the prompt "Overlay UI", the best way is to wrap ActiveSessionScreen's body or root.
+    // However, I can't easily change the parent of ActiveSessionScreen without refactoring navigation.
+    // Let's assume RestTimerButton is responsible for showing the overlay using `Overlay.of`.
+    
+    // Actually, "In-place" UI for timer is what we had. 
+    // The "Overlay" request is for "during the final 10 seconds".
+    // I can stick to my previous implementation but add the "Big Text" overlay specifically.
+    
+    return const _RestTimerInternal();
+  }
+}
+
+class _RestTimerInternal extends StatefulWidget {
+  const _RestTimerInternal();
+  @override
+  State<_RestTimerInternal> createState() => _RestTimerInternalState();
+}
+
+class _RestTimerInternalState extends State<_RestTimerInternal> {
+  Timer? _timer;
+  int _secondsRemaining = 0;
+  final AudioPlayer _player = AudioPlayer();
+  bool _alertTriggered = false;
+  OverlayEntry? _overlayEntry;
+
+  void startTimer(int seconds) {
+    setState(() {
+      _secondsRemaining = seconds;
+      _alertTriggered = false; 
+    });
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+       if (!mounted) { timer.cancel(); return; }
+       
+       if (_secondsRemaining > 0) {
+        setState(() {
+          _secondsRemaining--;
+        });
+        
+        // Show overlay if <= 10
+        if (_secondsRemaining <= 10) {
+           _showOverlay(true);
+        }
+
+        if (_secondsRemaining == 10 && !_alertTriggered) {
+           _alertTriggered = true;
+           bool? hasVibrator = await Vibration.hasVibrator();
+           if (hasVibrator == true) {
+             Vibration.vibrate(duration: 500); 
+           }
+           try {
+             await _player.play(AssetSource('sounds/alert.mp3'));
+           } catch (e) { /* ignore */ }
+        }
+      } else {
+        timer.cancel();
+        _showOverlay(false);
+        bool? hasVibrator = await Vibration.hasVibrator();
+         if (hasVibrator == true) {
+           Vibration.vibrate(pattern: [0, 500, 200, 500]); 
+         }
+      }
+    });
+  }
+  
+  void _showOverlay(bool show) {
+    if (show && _overlayEntry == null) {
+      _overlayEntry = OverlayEntry(builder: (context) {
+         return Positioned.fill(
+           child: Material(
+             color: Colors.black54,
+             child: Center(
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   const Text('ПРИГОТОВИТЬСЯ', style: TextStyle(color: Colors.redAccent, fontSize: 36, fontWeight: FontWeight.bold)),
+                   const SizedBox(height: 16),
+                   Text('$_secondsRemaining', style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.bold)),
+                 ],
+               ),
+             ),
+           ),
+         );
+      });
+      Overlay.of(context).insert(_overlayEntry!);
+    } else if (!show && _overlayEntry != null) {
+      _overlayEntry!.remove();
+      _overlayEntry = null;
+    } else if (show && _overlayEntry != null) {
+       _overlayEntry!.markNeedsBuild();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _showOverlay(false);
+    _player.dispose();
+    super.dispose();
+  }
+
   String get timerText {
     final m = _secondsRemaining ~/ 60;
     final s = _secondsRemaining % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
-
+  
   Widget _buildPresetButton(String label, int seconds) {
     return Expanded(
       child: Padding(
@@ -98,7 +241,6 @@ class _RestTimerButtonState extends State<RestTimerButton> {
   @override
   Widget build(BuildContext context) {
     if (_secondsRemaining > 0) {
-      // Feature: Visual Polish - Glowing/High Contrast
       return Container(
         width: double.infinity,
         decoration: BoxDecoration(
@@ -131,13 +273,12 @@ class _RestTimerButtonState extends State<RestTimerButton> {
                    onPressed: () {
                      _timer?.cancel();
                      setState(() => _secondsRemaining = 0);
+                     _showOverlay(false);
                    },
                    tooltip: 'Стоп',
                  )
               ],
             ),
-            if (_secondsRemaining <= 10)
-               const Text('Приготовься!', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ],
         ),
       );
