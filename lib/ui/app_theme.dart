@@ -4,9 +4,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Theme Names
-enum AppThemeType { midnight, iron, toxic }
+enum AppThemeType { midnight, iron, toxic, light }
 
 class AppTheme {
+  static const _inputTheme = InputDecorationTheme(
+    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    isDense: false,
+    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
+  );
+
   static final ThemeData midnight = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
@@ -18,7 +24,8 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: const Color(0xFF010409),
     textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-    visualDensity: VisualDensity.compact,
+    visualDensity: VisualDensity.standard, // Updated to standard per requirement
+    inputDecorationTheme: _inputTheme,
   );
 
   static final ThemeData iron = ThemeData(
@@ -32,7 +39,8 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: const Color(0xFF121212),
     textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-    visualDensity: VisualDensity.compact,
+    visualDensity: VisualDensity.standard,
+    inputDecorationTheme: _inputTheme,
   );
 
   static final ThemeData toxic = ThemeData(
@@ -46,7 +54,35 @@ class AppTheme {
     ),
     scaffoldBackgroundColor: const Color(0xFF1C2326),
     textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
-    visualDensity: VisualDensity.compact,
+    visualDensity: VisualDensity.standard,
+    inputDecorationTheme: _inputTheme,
+  );
+  
+  static final ThemeData light = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.light,
+    colorScheme: const ColorScheme.light(
+      primary: Color(0xFF546E7A), // Muted Blue Grey (Soft)
+      secondary: Color(0xFF90A4AE),
+      surface: Colors.white,
+      background: Color(0xFFF5F7FA), // Soft Blue-Grey/Off-White
+      onBackground: Color(0xFF2D3436), // Deep Charcoal
+      onSurface: Color(0xFF2D3436),
+    ),
+    scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+    textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).apply(
+      bodyColor: const Color(0xFF2D3436), 
+      displayColor: const Color(0xFF2D3436),
+    ),
+    visualDensity: VisualDensity.standard,
+    cardTheme: const CardThemeData(
+      color: Colors.white,
+      elevation: 1,
+      shadowColor: Color(0x1A000000),
+      margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+    ),
+    inputDecorationTheme: _inputTheme,
   );
 }
 
@@ -58,7 +94,9 @@ class ThemeNotifier extends StateNotifier<AppThemeType> {
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final idx = prefs.getInt('theme_index') ?? 0;
-    state = AppThemeType.values[idx];
+    if (idx < AppThemeType.values.length) {
+      state = AppThemeType.values[idx];
+    }
   }
 
   Future<void> setTheme(AppThemeType type) async {
@@ -78,5 +116,6 @@ final currentThemeProvider = Provider<ThemeData>((ref) {
     case AppThemeType.midnight: return AppTheme.midnight;
     case AppThemeType.iron: return AppTheme.iron;
     case AppThemeType.toxic: return AppTheme.toxic;
+    case AppThemeType.light: return AppTheme.light;
   }
 });

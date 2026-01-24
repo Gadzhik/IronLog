@@ -114,9 +114,10 @@ class HistoryTab extends ConsumerWidget {
                ref.read(themeProvider.notifier).setTheme(val);
             },
             itemBuilder: (context) => [
-               const PopupMenuItem(value: AppThemeType.midnight, child: Text('Midnight')),
-               const PopupMenuItem(value: AppThemeType.iron, child: Text('Iron')),
-               const PopupMenuItem(value: AppThemeType.toxic, child: Text('Toxic')),
+               const PopupMenuItem(value: AppThemeType.midnight, child: Text('Полночь')),
+               const PopupMenuItem(value: AppThemeType.iron, child: Text('Сталь')),
+               const PopupMenuItem(value: AppThemeType.toxic, child: Text('Токсик')),
+               const PopupMenuItem(value: AppThemeType.light, child: Text('Светлая')),
             ],
           )
         ],

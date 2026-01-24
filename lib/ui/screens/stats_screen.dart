@@ -41,14 +41,14 @@ class StatsScreen extends ConsumerStatefulWidget {
 class _StatsScreenState extends ConsumerState<StatsScreen> {
   Exercise? _selectedExercise;
   
-  // Feature: Compact Filter options - Added 'Месяц' as requested in prompt.
+  // Feature: Overhauled Filter options
   final Map<String, Duration?> _ranges = {
-    '1 день': const Duration(days: 1),
-    '3 дня': const Duration(days: 3),
     'Неделя': const Duration(days: 7),
     'Месяц': const Duration(days: 30),
+    'Полгода': const Duration(days: 180),
+    'Все время': null,
   };
-  String? _selectedRangeKey; 
+  String? _selectedRangeKey = 'Все время'; // Default to All Time
 
   void _showExercisePicker(List<Exercise> exercises) {
     showModalBottomSheet(context: context, isScrollControlled: true, builder: (context) {
@@ -61,121 +61,120 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Logic: If range is selected, show only relevant exercises. Else show all.
     final range = _selectedRangeKey != null ? _ranges[_selectedRangeKey] : null;
     final exercisesAsync = ref.watch(exercisesForRangeProvider(range));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Прогресс')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            exercisesAsync.when(
-              data: (exercises) {
-                // If selected exercise is no longer in the list (e.g. range changed), we might keep it or clear it.
-                // Requirement: "Independent Filters". 
-                // Suggestion: Ensure the dropdown shows exercises valid for the range. 
-                // If user selected "Bench Press" and "1 Day", but Bench Press wasn't done today, 
-                // the chart will simply show "No Data" which is correct behavior for independent filters?
-                // Or should the dropdown be filtered?
-                // "If I select '1 day', the screen must show ALL exercises performed on that day."
-                // This implies the picker list updates.
-                
-                if (exercises.isEmpty) return const Text('Нет данных за этот период');
-                
-                // If currently selected exercise is not in the new filtered list?
-                // Independent filters usually means one doesn't clear the other, but the RESULT combines both.
-                // But the picker itself: "Scenario: If I select '1 day', the screen must show ALL exercises performed on that day."
-                // This likely means the *available* exercises to pick from.
-                
-                return InkWell(
-                  onTap: () => _showExercisePicker(exercises),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.white24),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _selectedExercise?.name ?? 'Выберите упражнение', 
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: _selectedExercise == null ? Colors.grey : null
-                          )
-                        ),
-                        const Icon(Icons.arrow_drop_down),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              loading: () => const LinearProgressIndicator(),
-              error: (err, _) => Text('Error loading exercises: $err'),
-            ),
-            const SizedBox(height: 16),
-            
-            // Feature: Compact Filtering + Reset
-            Row(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: _ranges.keys.map((key) {
-                        final isSelected = _selectedRangeKey == key;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: ChoiceChip(
-                            label: Text(key),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                _selectedRangeKey = selected ? key : null;
-                              });
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-                // Feature: Global Reset
-                IconButton(
-                  onPressed: () {
-                     setState(() {
-                       _selectedRangeKey = null;
-                       _selectedExercise = null;
-                     });
-                  },
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Сбросить',
-                )
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            Expanded(
-              child: _selectedExercise == null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              exercisesAsync.when(
+                data: (exercises) {
+                  if (exercises.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Text('Нет данных за этот период', style: TextStyle(color: Colors.grey)),
+                      ),
+                    );
+                  }
+                  
+                  return InkWell(
+                    onTap: () => _showExercisePicker(exercises),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Theme.of(context).dividerColor),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(Icons.show_chart, size: 48, color: Colors.grey[800]),
-                          const SizedBox(height: 16),
-                          const Text('Выберите упражнение', style: TextStyle(color: Colors.grey)),
+                          Expanded(
+                            child: Text(
+                              _selectedExercise?.name ?? 'Выберите упражнение', 
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: _selectedExercise == null ? Colors.grey : null
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
                         ],
                       ),
-                    )
-                  : _ChartWidget(
-                      exerciseId: _selectedExercise!.id,
-                      range: _selectedRangeKey != null ? _ranges[_selectedRangeKey] : null,
                     ),
-            ),
-          ],
+                  );
+                },
+                loading: () => const LinearProgressIndicator(),
+                error: (err, _) => Text('Error: $err'),
+              ),
+              const SizedBox(height: 16),
+              
+              // Feature: Compact Filtering + Reset
+              Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: _ranges.keys.map((key) {
+                          final isSelected = _selectedRangeKey == key;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: ChoiceChip(
+                              label: Text(key),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  _selectedRangeKey = selected ? key : null;
+                                });
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                       setState(() {
+                         _selectedRangeKey = 'Все время';
+                         _selectedExercise = null;
+                       });
+                    },
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Сбросить',
+                  )
+                ],
+              ),
+              
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 350, // Fixed height for chart within scroll view
+                child: _selectedExercise == null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.show_chart, size: 48, color: Colors.grey.withOpacity(0.5)),
+                            const SizedBox(height: 16),
+                            const Text('Выберите упражнение для анализа', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      )
+                    : _ChartWidget(
+                        exerciseId: _selectedExercise!.id,
+                        range: range,
+                      ),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
@@ -278,6 +277,12 @@ class _ChartWidget extends ConsumerWidget {
         minY = (minY - buffer).clamp(0, double.infinity);
         maxY = maxY + buffer;
 
+        // Formatter for weights to show as integers
+        String formatWeight(double val) {
+           if (val == val.toInt().toDouble()) return val.toInt().toString();
+           return val.toStringAsFixed(1);
+        }
+
         return Padding(
           padding: const EdgeInsets.only(right: 16, top: 16, bottom: 16),
           child: LineChart(
@@ -287,11 +292,11 @@ class _ChartWidget extends ConsumerWidget {
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
-                getDrawingHorizontalLine: (value) => FlLine(color: Colors.white10, strokeWidth: 1),
+                getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).dividerColor.withOpacity(0.05), strokeWidth: 1),
               ),
               titlesData: FlTitlesData(
                 bottomTitles: AxisTitles(
-                  axisNameWidget: const Text('Дата', style: TextStyle(fontSize: 12)),
+                  axisNameWidget: const Text('Дата', style: TextStyle(fontSize: 10)),
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 32,
@@ -300,6 +305,7 @@ class _ChartWidget extends ConsumerWidget {
                       final index = val.toInt();
                       if (index >= 0 && index < data.length) {
                          int step = (data.length / 4).ceil();
+                         if (step < 1) step = 1;
                          if (index % step != 0 && index != data.length - 1) return const SizedBox.shrink();
 
                          final date = data[index]['date'] as DateTime;
@@ -307,7 +313,7 @@ class _ChartWidget extends ConsumerWidget {
                            padding: const EdgeInsets.only(top: 8.0),
                            child: Text(
                              DateFormat('d MMM').format(date),
-                             style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
+                             style: TextStyle(fontSize: 10, color: Theme.of(context).hintColor),
                            ),
                          );
                       }
@@ -316,16 +322,16 @@ class _ChartWidget extends ConsumerWidget {
                   ),
                 ),
                 leftTitles: AxisTitles(
-                  axisNameWidget: const Padding(
-                    padding: EdgeInsets.only(bottom: 8.0),
-                    child: Text('Вес (кг)', style: TextStyle(fontSize: 12)),
+                  axisNameWidget: Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Text('Вес (кг)', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
                   ),
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 40,
                     getTitlesWidget: (val, meta) => Text(
-                      val.toInt().toString(), 
-                      style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)
+                      formatWeight(val), 
+                      style: TextStyle(color: Theme.of(context).hintColor, fontSize: 11)
                     ),
                   ),
                 ),
@@ -336,15 +342,16 @@ class _ChartWidget extends ConsumerWidget {
               lineBarsData: [
                 LineChartBarData(
                   spots: spots,
-                  isCurved: false,
+                  isCurved: true, // Smother look for Soft UI
+                  curveSmoothness: 0.3,
                   color: Theme.of(context).colorScheme.primary,
-                  barWidth: 3,
+                  barWidth: 4,
                   isStrokeCapRound: true,
                   dotData: FlDotData(
                      show: true,
                      getDotPainter: (spot, percent, barData, index) {
                         return FlDotCirclePainter(
-                           radius: 4,
+                           radius: 5,
                            strokeWidth: 2,
                            color: Theme.of(context).colorScheme.surface,
                            strokeColor: Theme.of(context).colorScheme.primary,
@@ -353,10 +360,9 @@ class _ChartWidget extends ConsumerWidget {
                   ),
                   belowBarData: BarAreaData(
                     show: true,
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                     gradient: LinearGradient(
                       colors: [
-                        Theme.of(context).colorScheme.primary.withOpacity(0.25),
+                        Theme.of(context).colorScheme.primary.withOpacity(0.3),
                         Theme.of(context).colorScheme.primary.withOpacity(0.0),
                       ],
                       begin: Alignment.topCenter,
@@ -367,14 +373,14 @@ class _ChartWidget extends ConsumerWidget {
               ],
               lineTouchData: LineTouchData(
                  touchTooltipData: LineTouchTooltipData(
-                   getTooltipColor: (spot) => const Color(0xFF2C2C2E),
+                   getTooltipColor: (spot) => Theme.of(context).colorScheme.primaryContainer,
                    getTooltipItems: (spots) {
                      return spots.map((spot) {
                        final index = spot.x.toInt();
                        final date = data[index]['date'] as DateTime;
                        return LineTooltipItem(
-                         '${spot.y} кг\n${DateFormat('d MMMM').format(date)}',
-                         const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                         '${formatWeight(spot.y)} кг\n${DateFormat('d MMMM').format(date)}',
+                         TextStyle(color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold),
                        );
                      }).toList();
                    }

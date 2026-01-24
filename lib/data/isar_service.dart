@@ -186,17 +186,18 @@ class IsarService {
     // We want sessions where startTime >= after (if after is provided)
     // "Isar searches from 00:00:00 to 23:59:59"
     
-    var builder;
+    // Fix: Dynamic dispatch of extension method error
+    // We must call .findAll() on the typed builder directly or cast it. using separate branches is cleanest.
+    
+    List<WorkoutSession> sessions;
     
     if (after != null) {
       // Ensure we start from the beginning of the 'after' day
       final startOfDay = DateTime(after.year, after.month, after.day);
-      builder = isar.workoutSessions.filter().startTimeGreaterThan(startOfDay, include: true).sortByStartTime();
+      sessions = await isar.workoutSessions.filter().startTimeGreaterThan(startOfDay, include: true).sortByStartTime().findAll();
     } else {
-      builder = isar.workoutSessions.where().sortByStartTime();
+      sessions = await isar.workoutSessions.where().sortByStartTime().findAll();
     }
-    
-    final sessions = await builder.findAll();
     
     List<Map<String, dynamic>> history = [];
     
