@@ -82,6 +82,8 @@ class HistoryTab extends ConsumerWidget {
                const PopupMenuItem(value: AppThemeType.cyberpunk, child: Text('Cyber Punk')),
                const PopupMenuItem(value: AppThemeType.toxic, child: Text('Toxic Night')),
                const PopupMenuItem(value: AppThemeType.sea, child: Text('Deep Sea')),
+               const PopupMenuItem(value: AppThemeType.emerald, child: Text('Deep Emerald')),
+               const PopupMenuItem(value: AppThemeType.amethyst, child: Text('Royal Amethyst')),
             ],
           ),
         ],
@@ -101,19 +103,19 @@ class HistoryTab extends ConsumerWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
               final session = sessions[index];
               return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Dismissible(
                   key: ValueKey(session.id),
                   direction: DismissDirection.horizontal,
-                  // Fix: Backgrounds for Dismissible to prevent crash
+                  // Fix: Providing mandatory background widgets for swiping
                   background: Container(
                     alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 24),
+                    padding: const EdgeInsets.only(left: 20),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(24),
@@ -122,7 +124,7 @@ class HistoryTab extends ConsumerWidget {
                   ),
                   secondaryBackground: Container(
                     alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 24),
+                    padding: const EdgeInsets.only(right: 20),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(24),
@@ -133,7 +135,7 @@ class HistoryTab extends ConsumerWidget {
                     if (direction == DismissDirection.startToEnd) {
                       HapticFeedback.lightImpact();
                       Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
-                      return false;
+                      return false; // Prevent dismissal for right swipe
                     } else {
                       return true;
                     }
@@ -175,7 +177,7 @@ class WorkoutHistoryCard extends StatelessWidget {
         : 0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
@@ -189,7 +191,7 @@ class WorkoutHistoryCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   session.name?.toUpperCase() ?? 'ТРЕНИРОВКА', 
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5)
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 0.5)
                 ),
               ),
               if (duration > 0)
@@ -198,13 +200,13 @@ class WorkoutHistoryCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(dateStr, style: TextStyle(color: Theme.of(context).hintColor, fontSize: 11)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: session.entries.take(4).map((e) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
+            spacing: 6,
+            runSpacing: 6,
+            children: session.entries.take(3).map((e) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(10)),
               child: Text(e.exerciseName?.toUpperCase() ?? '-', style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.bold)),
             )).toList(),
           ),

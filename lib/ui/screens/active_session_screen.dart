@@ -19,7 +19,6 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
-  final _formKey = GlobalKey<FormState>();
   late ConfettiController _confettiController;
   final FocusNode _nameFocusNode = FocusNode();
   final TextEditingController _nameController = TextEditingController();
@@ -29,17 +28,16 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     
-    // Logic: Clear initial default name if it was just a generated date, or use hint
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final session = ref.read(activeSessionProvider);
-      if (session != null) {
-        _nameController.text = ""; // Use as hint
+    _nameFocusNode.addListener(() {
+      if (_nameFocusNode.hasFocus) {
+         _nameController.clear();
       }
     });
 
-    _nameFocusNode.addListener(() {
-      if (_nameFocusNode.hasFocus) {
-        // Ready for clean input
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = ref.read(activeSessionProvider);
+      if (session != null) {
+        _nameController.text = ""; 
       }
     });
   }
@@ -54,18 +52,19 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
 
   bool _isSessionValid(WorkoutSession? session) {
     if (session == null || session.entries.isEmpty) return false;
+    
     for (var entry in session.entries) {
+      if (entry.sets.isEmpty) return false;
       for (var set in entry.sets) {
-        if (set.isCompleted) {
-          if (entry.exerciseType == ExerciseType.strength) {
-            if (set.weight > 0 && set.reps > 0) return true;
-          } else {
-            if (set.duration > 0 || set.distance > 0) return true;
-          }
+        if (!set.isCompleted) return false;
+        if (entry.exerciseType == ExerciseType.strength) {
+           if (set.weight <= 0 || set.reps <= 0) return false;
+        } else {
+           if (set.duration <= 0 && set.distance <= 0) return false;
         }
       }
     }
-    return false;
+    return true;
   }
 
   @override
@@ -88,7 +87,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               if (!canFinish) {
                  HapticFeedback.vibrate();
                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Пожалуйста, заполните необходимые данные подходов'))
+                    const SnackBar(content: Text('Заполните вес и повторения для всех подходов'))
                  );
                  return;
               }
@@ -96,12 +95,11 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               HapticFeedback.heavyImpact();
               _confettiController.play();
               
-              // Logic: If name is empty, assign default
-              if (_nameController.text.trim().isEmpty) {
-                 final now = DateTime.now();
-                 ref.read(activeSessionProvider.notifier).updateName('Тренировка от ${DateFormat('dd.MM').format(now)}');
-              } else {
+              if (_nameController.text.trim().isNotEmpty) {
                  ref.read(activeSessionProvider.notifier).updateName(_nameController.text);
+              } else {
+                 final now = DateTime.now();
+                 ref.read(activeSessionProvider.notifier).updateName('Тренировка от ${DateFormat('dd.MM.yy').format(now)}');
               }
               
               await ref.read(activeSessionProvider.notifier).finishSession();
@@ -120,7 +118,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
           Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: TextField(
                   controller: _nameController,
                   focusNode: _nameFocusNode,
@@ -136,12 +134,12 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               ),
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   itemCount: session.entries.length + 1,
                   itemBuilder: (context, index) {
                     if (index == session.entries.length) {
                       return Padding(
-                        padding: const EdgeInsets.all(24.0),
+                        padding: const EdgeInsets.all(20.0),
                         child: InkWell(
                           onTap: () {
                              HapticFeedback.lightImpact();
@@ -149,7 +147,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                           },
                           borderRadius: BorderRadius.circular(24),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(24),
@@ -168,7 +166,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                       );
                     }
                     return ExerciseEntryCard(
-                      key: ValueKey('entry_${session.entries[index].exerciseId}_$index'),
+                      key: ValueKey('entry_${index}_${session.entries[index].exerciseId}'),
                       entryIndex: index, 
                       entry: session.entries[index]
                     );
@@ -203,8 +201,8 @@ class ExerciseEntryCard extends ConsumerWidget {
     final lastPerfAsync = ref.watch(lastPerformanceProvider(entry.exerciseId ?? -1));
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
@@ -222,11 +220,12 @@ class ExerciseEntryCard extends ConsumerWidget {
                     fontWeight: FontWeight.w900,
                     color: Theme.of(context).colorScheme.primary,
                     letterSpacing: 0.5,
+                    fontSize: 16,
                   ),
                 ),
               ),
               IconButton(
-                icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.grey),
+                icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.grey),
                 onPressed: () {
                   HapticFeedback.lightImpact();
                   ref.read(activeSessionProvider.notifier).removeExercise(entryIndex);
@@ -241,7 +240,7 @@ class ExerciseEntryCard extends ConsumerWidget {
              loading: () => const SizedBox.shrink(),
              error: (_,__) => const SizedBox.shrink()
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           ...entry.sets.asMap().entries.map((e) => ExerciseSetRow(
             key: ValueKey('set_${entryIndex}_${e.key}'),
             entryIndex: entryIndex, 
@@ -249,14 +248,14 @@ class ExerciseEntryCard extends ConsumerWidget {
             set: e.value, 
             isCardio: isCardio,
           )),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           TextButton.icon(
             onPressed: () {
               HapticFeedback.lightImpact();
               ref.read(activeSessionProvider.notifier).addSet(entryIndex);
             },
-            icon: const Icon(LucideIcons.plus, size: 18),
-            label: const Text('ДОБАВИТЬ ПОДХОД', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+            icon: const Icon(LucideIcons.plus, size: 16),
+            label: const Text('ДОБАВИТЬ ПОДХОД', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 11)),
           ),
         ],
       ),
@@ -315,48 +314,49 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+            width: 24,
+            height: 24,
+            decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
             alignment: Alignment.center,
             child: Text('${widget.setIndex + 1}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _col1Controller,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
               decoration: InputDecoration(
                 hintText: widget.isCardio ? 'КМ' : 'КГ',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               ),
               onChanged: (_) => _save(),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           Expanded(
             child: TextField(
               controller: _col2Controller,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
               decoration: InputDecoration(
                 hintText: widget.isCardio ? 'МИН' : 'ПОВТ',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               ),
               onChanged: (_) => _save(),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           IconButton(
             icon: Icon(
               widget.set.isCompleted ? LucideIcons.checkCircle2 : LucideIcons.circle,
+              size: 20,
               color: widget.set.isCompleted 
                   ? Theme.of(context).colorScheme.primary 
                   : (hasValue ? Colors.grey[400] : Colors.grey[800]),
@@ -369,7 +369,7 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                   if (!hasValue) {
                      HapticFeedback.vibrate();
                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Пожалуйста, заполните поля подхода'))
+                        const SnackBar(content: Text('Заполните данные для всех подходов'))
                      );
                      return;
                   }

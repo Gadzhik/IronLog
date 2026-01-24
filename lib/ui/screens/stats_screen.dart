@@ -23,7 +23,8 @@ class StatsFilter {
 
 final exerciseHistoryProvider = FutureProvider.family<List<Map<String, dynamic>>, StatsFilter>((ref, filter) async {
   final service = ref.read(isarServiceProvider);
-  return service.getExerciseHistory(filter.exerciseId, filter.type);
+  // Finalizing the query correctly with build().findAll()
+  return await service.getExerciseHistory(filter.exerciseId, filter.type);
 });
 
 class StatsScreen extends ConsumerStatefulWidget {
@@ -54,7 +55,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           : null,
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 300),
         child: _selectedExercise == null 
           ? exercisesAsync.when(
               data: (exercises) => _ExerciseListView(
@@ -92,7 +93,6 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
       e.category.toLowerCase().contains(_query.toLowerCase())
     ).toList();
     
-    // Feature: Independent grouping and filtering logic
     final grouped = groupBy(filtered, (e) => (e.category == null || e.category!.isEmpty) ? 'ПРОЧЕЕ' : e.category);
     final keys = grouped.keys.toList()..sort((a,b) {
        if (a == 'ПРОЧЕЕ') return 1;
@@ -103,36 +103,38 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: TextField(
             decoration: const InputDecoration(
               hintText: 'Поиск упражнения...',
-              prefixIcon: Icon(LucideIcons.search, size: 20),
+              prefixIcon: Icon(LucideIcons.search, size: 18),
+              contentPadding: EdgeInsets.symmetric(vertical: 8),
             ),
             onChanged: (val) => setState(() => _query = val),
           ),
         ),
         Expanded(
           child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             itemCount: keys.length,
             itemBuilder: (context, index) {
               final cat = keys[index];
               final items = grouped[cat]!;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: ExpansionTile(
-                  title: Text(cat!.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
-                  initiallyExpanded: false, // Collapsed by default
-                  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-                  collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-                  backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.5),
-                  collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-                  children: items.map((e) => ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                    title: Text(e.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                    onTap: () => widget.onSelect(e),
-                  )).toList(),
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    title: Text(cat!.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
+                    initiallyExpanded: false, // Collapsed by default
+                    children: items.map((e) => ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                      dense: true,
+                      title: Text(e.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      trailing: const Icon(LucideIcons.chevronRight, size: 14),
+                      onTap: () => widget.onSelect(e),
+                    )).toList(),
+                  ),
                 ),
               );
             },
@@ -150,7 +152,7 @@ class _ExerciseDetailView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -160,8 +162,8 @@ class _ExerciseDetailView extends StatelessWidget {
               color: Colors.transparent,
               child: Text(
                 exercise.name.toUpperCase(), 
-                style: GoogleFonts.montserrat(
-                  fontSize: 24,
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 28,
                   fontWeight: FontWeight.w900,
                   color: Theme.of(context).colorScheme.primary,
                   letterSpacing: 1,
@@ -171,9 +173,9 @@ class _ExerciseDetailView extends StatelessWidget {
           ),
           Text(
             exercise.type == ExerciseType.strength ? 'СИЛОВЫЕ / ВЕС' : 'ВЫНОСЛИВОСТЬ / ВРЕМЯ',
-            style: TextStyle(color: Theme.of(context).hintColor, letterSpacing: 1.5, fontSize: 10, fontWeight: FontWeight.bold),
+            style: TextStyle(color: Theme.of(context).hintColor, letterSpacing: 1, fontSize: 10, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           _ChartSection(exercise: exercise),
         ],
       ),
@@ -192,7 +194,7 @@ class _ChartSection extends ConsumerWidget {
     return historyAsync.when(
       data: (data) {
         if (data.isEmpty) return const Center(child: Padding(
-          padding: EdgeInsets.all(48.0),
+          padding: EdgeInsets.all(40.0),
           child: Text('НЕТ ДАННЫХ ПО ЭТОМУ УПРАЖНЕНИЮ', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 10)),
         ));
 
@@ -202,15 +204,15 @@ class _ChartSection extends ConsumerWidget {
         return Column(
           children: [
             Container(
-              height: 350,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 24),
+              height: 300,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: _HistoryChart(data: data, color: Theme.of(context).colorScheme.primary),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.grey, letterSpacing: 1)),
           ],
         );
@@ -237,8 +239,8 @@ class _HistoryChartState extends State<_HistoryChart> with SingleTickerProviderS
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000));
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOutExpo);
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 1));
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
     _controller.forward();
   }
 
@@ -257,40 +259,40 @@ class _HistoryChartState extends State<_HistoryChart> with SingleTickerProviderS
           return FlSpot(e.key.toDouble(), (e.value['value'] as num).toDouble() * _animation.value);
         }).toList();
 
-        double maxY = (widget.data.map((e) => (e['value'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.3;
+        double maxY = (widget.data.map((e) => (e['value'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.2;
         if (maxY == 0) maxY = 10;
 
         return LineChart(
           LineChartData(
             minY: 0,
             maxY: maxY,
-            gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1)),
+            gridData: const FlGridData(show: false),
             titlesData: FlTitlesData(
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  reservedSize: 30,
+                  reservedSize: 24,
                   getTitlesWidget: (v, m) {
                     int i = v.toInt();
-                    if (i >= 0 && i < widget.data.length && (widget.data.length < 5 || i % (widget.data.length ~/ 3) == 0)) {
+                    if (i >= 0 && i < widget.data.length && (widget.data.length < 5 || i % (widget.data.length ~/ 2) == 0)) {
                       return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(DateFormat('d.MM').format(widget.data[i]['date']), style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(DateFormat('d.MM').format(widget.data[i]['date']), style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
                       );
                     }
                     return const SizedBox.shrink();
                   }
                 )
               ),
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.bold)))),
+              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 32, getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)))),
               topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
             lineTouchData: LineTouchData(
                touchTooltipData: LineTouchTooltipData(
-                 getTooltipColor: (_) => Colors.grey[900]!,
+                 getTooltipColor: (_) => Colors.black87,
                  getTooltipItems: (touchedSpots) {
-                    return touchedSpots.map((s) => LineTooltipItem('${s.y.toInt()}', const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))).toList();
+                    return touchedSpots.map((s) => LineTooltipItem('${s.y.toInt()}', const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10))).toList();
                  }
                )
             ),
@@ -300,12 +302,12 @@ class _HistoryChartState extends State<_HistoryChart> with SingleTickerProviderS
                 spots: spots,
                 isCurved: true,
                 color: widget.color,
-                barWidth: 5,
+                barWidth: 4,
                 isStrokeCapRound: true,
-                dotData: FlDotData(show: true, getDotPainter: (spot, p, bar, i) => FlDotCirclePainter(radius: 4, color: Colors.black, strokeColor: widget.color, strokeWidth: 2)),
+                dotData: FlDotData(show: true, getDotPainter: (spot, p, bar, i) => FlDotCirclePainter(radius: 3, color: Colors.black, strokeColor: widget.color, strokeWidth: 2)),
                 belowBarData: BarAreaData(
                   show: true,
-                  gradient: LinearGradient(colors: [widget.color.withOpacity(0.4), widget.color.withOpacity(0)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                  gradient: LinearGradient(colors: [widget.color.withOpacity(0.3), widget.color.withOpacity(0)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
                 ),
               ),
             ],
