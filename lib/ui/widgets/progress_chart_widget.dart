@@ -10,12 +10,14 @@ class ProgressChartWidget extends StatelessWidget {
   final List<ProgressDataPoint> data;
   final Color themeColor;
   final ExerciseType type;
+  final String exerciseName;
 
   const ProgressChartWidget({
     super.key,
     required this.data,
     required this.themeColor,
     required this.type,
+    required this.exerciseName,
   });
 
   @override
@@ -66,26 +68,13 @@ class ProgressChartWidget extends StatelessWidget {
       );
     }
 
-    // Scaling Logic for Primary Axis
+    // Scaling Logic
     final double rawMin = data.map((e) => e.value).reduce((a, b) => a < b ? a : b);
     final double rawMax = data.map((e) => e.value).reduce((a, b) => a > b ? a : b);
     double buffer = (rawMax - rawMin) * 0.2;
     if (buffer == 0) buffer = rawMax * 0.1 + 5;
     final double minY = (rawMin - buffer).clamp(0, double.infinity);
     final double maxY = rawMax + buffer;
-
-    // Scaling Logic for Secondary Axis (if applicable)
-    bool hasSecondary = data.any((e) => e.secondaryValue != null && e.secondaryValue! > 0);
-    double secondaryMinY = 0;
-    double secondaryMaxY = 1;
-    if (hasSecondary) {
-      final double secRawMin = data.map((e) => e.secondaryValue ?? 0).reduce((a, b) => a < b ? a : b);
-      final double secRawMax = data.map((e) => e.secondaryValue ?? 0).reduce((a, b) => a > b ? a : b);
-      double secBuffer = (secRawMax - secRawMin) * 0.2;
-      if (secBuffer == 0) secBuffer = secRawMax * 0.1 + 5;
-      secondaryMinY = (secRawMin - secBuffer).clamp(0, double.infinity);
-      secondaryMaxY = secRawMax + secBuffer;
-    }
 
     return Column(
       children: [
@@ -124,7 +113,7 @@ class ProgressChartWidget extends StatelessWidget {
                     showTitles: true,
                     reservedSize: 40,
                     getTitlesWidget: (v, m) {
-                      if (v == minY || v > maxY) return const SizedBox.shrink();
+                      if (v < minY || v > maxY) return const SizedBox.shrink();
                       return Text(
                         v.toInt().toString(),
                         style: GoogleFonts.montserrat(fontSize: 10, color: Colors.grey),
@@ -132,22 +121,7 @@ class ProgressChartWidget extends StatelessWidget {
                     },
                   ),
                 ),
-                rightTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: hasSecondary,
-                    reservedSize: 40,
-                    getTitlesWidget: (v, m) {
-                      if (!hasSecondary) return const SizedBox.shrink();
-                      // Map primary Y value to secondary range for display
-                      double relative = (v - minY) / (maxY - minY);
-                      double actualSec = secondaryMinY + (relative * (secondaryMaxY - secondaryMinY));
-                      return Text(
-                        actualSec.toInt().toString(),
-                        style: GoogleFonts.montserrat(fontSize: 10, color: Colors.grey.withOpacity(0.5)),
-                      );
-                    },
-                  ),
-                ),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               borderData: FlBorderData(show: false),
@@ -169,11 +143,6 @@ class ProgressChartWidget extends StatelessWidget {
                             text: '${d.value.toInt()} ${_getUnit()}\n',
                             style: GoogleFonts.bebasNeue(color: Colors.white, fontSize: 24, letterSpacing: 1),
                           ),
-                          if (d.secondaryValue != null && d.secondaryValue! > 0)
-                            TextSpan(
-                              text: '${d.secondaryValue!.toInt()} ${_getSecondaryUnit()}\n',
-                              style: GoogleFonts.bebasNeue(color: themeColor.withOpacity(0.7), fontSize: 18, letterSpacing: 1),
-                            ),
                           TextSpan(
                             text: '$changeText к прошлому',
                             style: GoogleFonts.montserrat(color: color, fontWeight: FontWeight.w900, fontSize: 10),
@@ -207,20 +176,6 @@ class ProgressChartWidget extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (hasSecondary)
-                  LineChartBarData(
-                    spots: data.asMap().entries.map((e) {
-                      double val = e.value.secondaryValue ?? 0;
-                      // Normalize to primary range
-                      double normalized = minY + ((val - secondaryMinY) / (secondaryMaxY - secondaryMinY) * (maxY - minY));
-                      return FlSpot(e.key.toDouble(), normalized);
-                    }).toList(),
-                    isCurved: true,
-                    color: themeColor.withOpacity(0.3),
-                    barWidth: 2,
-                    dashArray: [5, 5],
-                    dotData: const FlDotData(show: false),
-                  ),
               ],
             ),
           ),
@@ -230,16 +185,18 @@ class ProgressChartWidget extends StatelessWidget {
           'ОСНОВНОЙ ПОКАЗАТЕЛЬ: ${_getMetricName().toUpperCase()} (${_getUnit().toUpperCase()})',
           style: GoogleFonts.montserrat(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1),
         ),
-        if (hasSecondary)
-          Text(
-            'ДОПОЛНИТЕЛЬНО: ${_getSecondaryMetricName().toUpperCase()} (${_getSecondaryUnit().toUpperCase()})',
-            style: GoogleFonts.montserrat(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.grey.withOpacity(0.6), letterSpacing: 1),
-          ),
       ],
     );
   }
 
   String _getUnit() {
+    if (exerciseName == 'Планка') return 'МИН';
+    // Logic matches ProgressProvider and AddSetWidget
+    final isBodyweight = exerciseName.contains('Пресс') || // Simplified for broad check or we use category?
+                        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(exerciseName);
+    
+    if (isBodyweight) return 'ПОВТ';
+
     switch (type) {
       case ExerciseType.strength: return 'КГ';
       case ExerciseType.bodyweight: return 'ПОВТ';
@@ -248,28 +205,13 @@ class ProgressChartWidget extends StatelessWidget {
     }
   }
 
-  String _getSecondaryUnit() {
-    switch (type) {
-      case ExerciseType.bodyweight: return 'КГ';
-      case ExerciseType.cardio: return 'МИН';
-      default: return '';
-    }
-  }
-
   String _getMetricName() {
+    if (exerciseName == 'Планка') return 'Макс. время';
     switch (type) {
       case ExerciseType.strength: return 'Макс. вес';
       case ExerciseType.bodyweight: return 'Макс. повторы';
       case ExerciseType.cardio: return 'Дистанция';
       case ExerciseType.static: return 'Время';
-    }
-  }
-
-  String _getSecondaryMetricName() {
-    switch (type) {
-      case ExerciseType.bodyweight: return 'С весом';
-      case ExerciseType.cardio: return 'Время';
-      default: return '';
     }
   }
 }

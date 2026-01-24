@@ -209,6 +209,7 @@ class _ExerciseDetailView extends ConsumerWidget {
                 data: data, 
                 themeColor: Theme.of(context).colorScheme.primary,
                 type: exercise.type,
+                exerciseName: exercise.name,
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, _) => Center(child: Text('Ошибка: $err')),
@@ -218,7 +219,7 @@ class _ExerciseDetailView extends ConsumerWidget {
           const SizedBox(height: 24),
           historyAsync.when(
             data: (data) => data.isNotEmpty 
-              ? _LatestMetricCard(point: data.last, type: exercise.type)
+              ? _LatestMetricCard(point: data.last, type: exercise.type, exerciseName: exercise.name)
               : const SizedBox.shrink(),
             loading: () => const SizedBox.shrink(),
             error: (_,__) => const SizedBox.shrink(),
@@ -241,8 +242,9 @@ class _ExerciseDetailView extends ConsumerWidget {
 class _LatestMetricCard extends StatelessWidget {
   final ProgressDataPoint point;
   final ExerciseType type;
+  final String exerciseName;
 
-  const _LatestMetricCard({required this.point, required this.type});
+  const _LatestMetricCard({required this.point, required this.type, required this.exerciseName});
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +304,7 @@ class _LatestMetricCard extends StatelessWidget {
   }
 
   String _getUnit() {
+    if (exerciseName == 'Планка' || type == ExerciseType.static) return 'МИН';
     switch (type) {
       case ExerciseType.strength: return 'КГ';
       case ExerciseType.bodyweight: return 'ПОВТ';
