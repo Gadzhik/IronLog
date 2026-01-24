@@ -152,7 +152,7 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
       ..endTime = s.endTime
       ..name = s.name
       ..note = s.note
-      ..entries = s.entries;
+      ..entries = List<WorkoutEntry>.from(s.entries);
   }
 }
 

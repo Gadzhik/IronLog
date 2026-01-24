@@ -1,14 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/data/models/exercise.dart';
+import 'package:iron_log/data/models/workout_session.dart';
+import 'package:isar_community/isar.dart'; // Ensure Isar import for watch()
 import 'dart:math';
 
-enum ProgressMetric { strength1RM, strengthVolume, cardioPace, cardioVolume }
+enum ProgressMetric { strengthBestSet, cardioTotal }
 
 class ProgressDataPoint {
   final DateTime date;
   final double value;
-  final double trendValue;
   final double? secondaryValue;
   final double percentChange;
   final bool isGrowth;
@@ -16,121 +17,87 @@ class ProgressDataPoint {
   const ProgressDataPoint({
     required this.date,
     required this.value,
-    required this.trendValue,
     this.secondaryValue,
     this.percentChange = 0,
     this.isGrowth = false,
   });
 }
 
-final progressMetricProvider = StateProvider<ProgressMetric>((ref) => ProgressMetric.strength1RM);
+final progressMetricProvider = StateProvider<ProgressMetric>((ref) => ProgressMetric.strengthBestSet);
 
-final progressHistoryProvider = FutureProvider.family<List<ProgressDataPoint>, int>((ref, exerciseId) async {
-  final isar = ref.read(isarServiceProvider);
-  final rawHistory = await isar.getExerciseHistory(exerciseId);
+// Reactive StreamProvider that watches Isar for any workout session changes
+final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, int>((ref, exerciseId) async* {
+  final isarService = ref.read(isarServiceProvider);
   final metric = ref.watch(progressMetricProvider);
+  
+  final db = await isarService.db;
+  
+  // Isar watch logic: build the query first, then watch it
+  final query = db.workoutSessions.where().sortByStartTime().build();
+  
+  yield* query.watch(fireImmediately: true).map((sessions) {
+    if (sessions.isEmpty) return [];
 
-  if (rawHistory.isEmpty) return [];
+    List<ProgressDataPoint> points = [];
+    
+    for (var session in sessions) {
+      for (var entry in session.entries) {
+        if (entry.exerciseId == exerciseId) {
+          final completedSets = entry.sets.where((s) => s.isCompleted).toList();
+          if (completedSets.isEmpty) continue;
 
-  // Group by Date (only YYYY-MM-DD) to find the best result per day
-  Map<String, Map<String, dynamic>> dailyBest = {};
+          double value = 0;
+          double? secondary;
 
-  for (var session in rawHistory) {
-    final date = session['date'] as DateTime;
-    final dateKey = "${date.year}-${date.month}-${date.day}";
-    final sets = session['sets'] as List<dynamic>;
-    final typeIndex = session['type'] as int;
-    final type = ExerciseType.values[typeIndex];
+          if (entry.exerciseType == ExerciseType.strength) {
+            for (var s in completedSets) {
+              if (s.weight > value) value = s.weight;
+            }
+          } else {
+            double totalDist = 0;
+            double totalDur = 0;
+            for (var s in completedSets) {
+              totalDist += s.distance;
+              totalDur += s.duration.toDouble();
+            }
+            value = totalDist;
+            secondary = totalDur;
+          }
 
-    double dailyVal = 0;
-    double? dailySec;
+          if (value > 0 || (secondary != null && secondary > 0)) {
+            points.add(ProgressDataPoint(
+              date: session.startTime,
+              value: value,
+              secondaryValue: secondary,
+            ));
+          }
+          break; 
+        }
+      }
+    }
 
-    if (type == ExerciseType.strength) {
-      if (metric == ProgressMetric.strength1RM) {
-        for (var s in sets) {
-          double w = (s['weight'] as num).toDouble();
-          int r = (s['reps'] as num).toInt();
-          if (r > 0 && w > 0) {
-            double current1RM = r == 1 ? w : w * (36 / (37 - min(r, 10)));
-            if (current1RM > dailyVal) dailyVal = current1RM;
+    // Sort by date and calculate improvements
+    points.sort((a, b) => a.date.compareTo(b.date));
+
+    List<ProgressDataPoint> finalized = [];
+    for (int i = 0; i < points.length; i++) {
+        double pct = 0;
+        bool growth = false;
+        if (i > 0) {
+          double prev = points[i-1].value;
+          if (prev > 0) {
+            pct = ((points[i].value - prev) / prev) * 100;
+            growth = points[i].value > prev;
           }
         }
-      } else if (metric == ProgressMetric.strengthVolume) {
-        double currentVol = 0;
-        for (var s in sets) {
-          currentVol += (s['weight'] as num) * (s['reps'] as num);
-        }
-        dailyVal = currentVol;
-      }
-    } else {
-      // Cardio
-      double totalDist = 0;
-      double totalDurMin = 0;
-      for (var s in sets) {
-        totalDist += (s['distance'] as num).toDouble();
-        totalDurMin += (s['duration'] as num).toDouble();
-      }
-
-      if (metric == ProgressMetric.cardioPace) {
-        // Pace (min/km) - Lower is better usually, but the user wants "lifting more/running longer"
-        // Let's stick to pace for now or flip it if requested. Usually pace is min/km.
-        if (totalDist > 0) dailyVal = totalDurMin / totalDist;
-        dailySec = totalDist;
-      } else if (metric == ProgressMetric.cardioVolume) {
-        dailyVal = totalDist;
-        dailySec = totalDurMin;
-      }
+        finalized.add(ProgressDataPoint(
+          date: points[i].date,
+          value: points[i].value,
+          secondaryValue: points[i].secondaryValue,
+          percentChange: pct,
+          isGrowth: growth,
+        ));
     }
-
-    if (dailyVal > 0) {
-       if (!dailyBest.containsKey(dateKey) || dailyVal > dailyBest[dateKey]!['value']) {
-         dailyBest[dateKey] = {
-           'date': date,
-           'value': dailyVal,
-           'secondary': dailySec,
-         };
-       }
-    }
-  }
-
-  List<ProgressDataPoint> points = dailyBest.values.map((v) => ProgressDataPoint(
-    date: v['date'] as DateTime,
-    value: v['value'] as double,
-    secondaryValue: v['secondary'] as double?,
-    trendValue: 0,
-  )).toList();
-
-  points.sort((a, b) => a.date.compareTo(b.date));
-
-  // Finalize with Trend and Change
-  List<ProgressDataPoint> finalized = [];
-  const int window = 3;
-
-  for (int i = 0; i < points.length; i++) {
-    double sum = 0;
-    int count = 0;
-    for (int j = max(0, i - window + 1); j <= i; j++) {
-      sum += points[j].value;
-      count++;
-    }
-    double trend = sum / count;
-
-    double pct = 0;
-    bool growth = false;
-    if (i > 0) {
-      pct = ((points[i].value - finalized[i-1].value) / finalized[i-1].value) * 100;
-      growth = points[i].value > finalized[i-1].value;
-    }
-
-    finalized.add(ProgressDataPoint(
-      date: points[i].date,
-      value: points[i].value,
-      trendValue: trend,
-      secondaryValue: points[i].secondaryValue,
-      percentChange: pct,
-      isGrowth: growth,
-    ));
-  }
-
-  return finalized;
+    return finalized;
+  });
 });

@@ -108,16 +108,12 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ExpansionTile(
-                  title: Text(cat!.toUpperCase(), style: GoogleFonts.bebasNeue(fontSize: 18, letterSpacing: 1)),
-                  initiallyExpanded: false, // Requirement: Collapsed by default
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  children: items.map((e) => ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                    title: Text(e.name, style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 14)),
-                    trailing: const Icon(LucideIcons.chevronRight, size: 16),
-                    onTap: () => widget.onSelect(e),
-                  )).toList(),
+                  title: Text(cat!.toUpperCase(), style: GoogleFonts.bebasNeue(fontSize: 20, letterSpacing: 1.5)),
+                  initiallyExpanded: false, // Collapsed by default
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  children: items.map((e) => _ExerciseTile(exercise: e, onTap: () => widget.onSelect(e))).toList(),
                 ),
               );
             },
@@ -128,13 +124,50 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
   }
 }
 
+class _ExerciseTile extends ConsumerWidget {
+  final Exercise exercise;
+  final VoidCallback onTap;
+  const _ExerciseTile({required this.exercise, required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(progressStreamProvider(exercise.id));
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      title: Text(exercise.name.toUpperCase(), style: GoogleFonts.montserrat(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)),
+      trailing: historyAsync.when(
+        data: (data) {
+          if (data.isEmpty || data.length < 2) return const Icon(LucideIcons.chevronRight, size: 16);
+          final bool growth = data.last.isGrowth;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                growth ? LucideIcons.trendingUp : LucideIcons.trendingDown, 
+                size: 16, 
+                color: growth ? Colors.greenAccent : Colors.redAccent
+              ),
+              const SizedBox(width: 8),
+              const Icon(LucideIcons.chevronRight, size: 16),
+            ],
+          );
+        },
+        loading: () => const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        error: (_,__) => const Icon(LucideIcons.chevronRight, size: 16),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
 class _ExerciseDetailView extends ConsumerWidget {
   final Exercise exercise;
   const _ExerciseDetailView({required this.exercise, super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final historyAsync = ref.watch(progressHistoryProvider(exercise.id));
+    final historyAsync = ref.watch(progressStreamProvider(exercise.id));
     final metric = ref.watch(progressMetricProvider);
     final isCardio = exercise.type == ExerciseType.cardio;
 
@@ -143,133 +176,114 @@ class _ExerciseDetailView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            exercise.name.toUpperCase(), 
-            style: GoogleFonts.bebasNeue(fontSize: 28, color: Theme.of(context).colorScheme.primary, letterSpacing: 1.5)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise.name.toUpperCase(), 
+                  style: GoogleFonts.bebasNeue(fontSize: 32, color: Theme.of(context).colorScheme.primary, letterSpacing: 1.5)
+                ),
+                Text(
+                  exercise.category?.toUpperCase() ?? 'ПРОЧЕЕ',
+                  style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 2),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          _MetricSelector(isCardio: isCardio),
           const SizedBox(height: 32),
           
           Container(
             height: 350,
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(28),
             ),
             child: historyAsync.when(
               data: (data) => ProgressChartWidget(
                 data: data, 
                 themeColor: Theme.of(context).colorScheme.primary,
-                metric: metric,
+                isCardio: isCardio,
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Center(child: Text('Ошибка загрузки: $err')),
+              error: (err, _) => Center(child: Text('Ошибка: $err')),
             ),
           ),
           
           const SizedBox(height: 24),
-          if (historyAsync.hasValue && historyAsync.value!.isNotEmpty)
-            _LastSessionSummary(point: historyAsync.value!.last, isCardio: isCardio, metric: metric),
+          historyAsync.when(
+            data: (data) => data.isNotEmpty 
+              ? _LatestMetricCard(point: data.last, isCardio: isCardio)
+              : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_,__) => const SizedBox.shrink(),
+          ),
         ],
       ),
     );
   }
 }
 
-class _MetricSelector extends ConsumerWidget {
-  final bool isCardio;
-  const _MetricSelector({required this.isCardio});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final metric = ref.watch(progressMetricProvider);
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: isCardio ? [
-          _chip(ref, ProgressMetric.cardioPace, 'ТЕМП (МИН/КМ)', metric),
-          _chip(ref, ProgressMetric.cardioVolume, 'ДИСТАНЦИЯ (КМ)', metric),
-        ] : [
-          _chip(ref, ProgressMetric.strength1RM, 'EST. 1RM (КГ)', metric),
-          _chip(ref, ProgressMetric.strengthVolume, 'ОБЪЕМ (КГ)', metric),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(WidgetRef ref, ProgressMetric m, String label, ProgressMetric current) {
-    final selected = m == current;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label, style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: selected ? Colors.black : Colors.white70)),
-        selected: selected,
-        onSelected: (val) {
-          if (val) {
-            HapticFeedback.lightImpact();
-            ref.read(progressMetricProvider.notifier).state = m;
-          }
-        },
-        selectedColor: ref.read(currentThemeProvider).colorScheme.primary,
-      ),
-    );
-  }
-}
-
-class _LastSessionSummary extends StatelessWidget {
+class _LatestMetricCard extends StatelessWidget {
   final ProgressDataPoint point;
   final bool isCardio;
-  final ProgressMetric metric;
 
-  const _LastSessionSummary({required this.point, required this.isCardio, required this.metric});
+  const _LatestMetricCard({required this.point, required this.isCardio});
 
   @override
   Widget build(BuildContext context) {
-    String label = 'РЕЗУЛЬТАТ';
-    String value = point.value.toStringAsFixed(1);
-    
-    if (metric == ProgressMetric.strength1RM) label = 'РАСЧЕТНЫЙ 1RM';
-    if (metric == ProgressMetric.strengthVolume) label = 'ОБЩИЙ ОБЪЕМ';
-    if (metric == ProgressMetric.cardioPace) label = 'ТЕМП СЕССИИ';
-    if (metric == ProgressMetric.cardioVolume) label = 'ДИСТАНЦИЯ';
+    final color = point.isGrowth ? Colors.greenAccent : Colors.redAccent;
+    final icon = point.isGrowth ? LucideIcons.trendingUp : LucideIcons.trendingDown;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.1)),
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
-              const SizedBox(height: 4),
-              Text(value, style: GoogleFonts.bebasNeue(fontSize: 24, letterSpacing: 1)),
-            ],
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('ИЗМЕНЕНИЕ', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
-              const SizedBox(height: 4),
-              Text(
-                '${point.percentChange >= 0 ? '+' : ''}${point.percentChange.toStringAsFixed(1)}%',
-                style: GoogleFonts.bebasNeue(
-                  fontSize: 24, 
-                  color: point.percentChange >= 0 ? Colors.greenAccent : Colors.redAccent,
-                  letterSpacing: 1
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('ПОСЛЕДНИЙ РЕЗУЛЬТАТ', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text(
+                  '${point.value.toInt()} ${isCardio ? 'КМ' : 'КГ'}', 
+                  style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 1)
                 ),
-              ),
-            ],
-          )
+              ],
+            ),
+          ),
+          if (point.percentChange != 0)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('ДИНАМИКА', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text(
+                  '${point.percentChange >= 0 ? '+' : ''}${point.percentChange.toInt()}%',
+                  style: GoogleFonts.bebasNeue(fontSize: 32, color: color, letterSpacing: 1),
+                ),
+              ],
+            ),
         ],
       ),
     );
