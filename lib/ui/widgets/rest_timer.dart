@@ -1,137 +1,26 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:iron_log/ui/app_theme.dart';
 
-class RestTimerOverlay extends StatefulWidget {
-  final Widget child;
-  const RestTimerOverlay({super.key, required this.child});
-
-  static RestTimerOverlayState of(BuildContext context) {
-    return context.findAncestorStateOfType<RestTimerOverlayState>()!;
-  }
-
-  @override
-  State<RestTimerOverlay> createState() => RestTimerOverlayState();
-}
-
-class RestTimerOverlayState extends State<RestTimerOverlay> {
-  Timer? _timer;
-  int _secondsRemaining = 0;
-  final AudioPlayer _player = AudioPlayer();
-  bool _alertTriggered = false;
-
-  void startTimer(int seconds) {
-    setState(() {
-      _secondsRemaining = seconds;
-      _alertTriggered = false; 
-    });
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_secondsRemaining > 0) {
-        setState(() {
-          _secondsRemaining--;
-        });
-        
-        // Critical: Alert at 10s
-        if (_secondsRemaining == 10 && !_alertTriggered) {
-           _alertTriggered = true;
-           bool? hasVibrator = await Vibration.hasVibrator();
-           if (hasVibrator == true) {
-             Vibration.vibrate(duration: 500); 
-           }
-           // Attempt to play sound
-           try {
-             await _player.play(AssetSource('sounds/alert.mp3'));
-           } catch (e) {
-             // Ignore if asset missing
-           }
-        }
-      } else {
-        timer.cancel();
-        bool? hasVibrator = await Vibration.hasVibrator();
-         if (hasVibrator == true) {
-           Vibration.vibrate(pattern: [0, 500, 200, 500]); 
-         }
-      }
-    });
-  }
-  
-  void cancelTimer() {
-    _timer?.cancel();
-    setState(() => _secondsRemaining = 0);
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _player.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-       children: [
-         widget.child,
-         if (_secondsRemaining > 0 && _secondsRemaining <= 10)
-           Positioned.fill(
-             child: Container(
-               color: Colors.black45,
-               alignment: Alignment.center,
-               child: Column(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   const Text(
-                     'ПРИГОТОВИТЬСЯ', 
-                     style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.redAccent, shadows: [
-                       Shadow(blurRadius: 10, color: Colors.black)
-                     ])
-                   ),
-                   Text(
-                     '$_secondsRemaining',
-                     style: const TextStyle(fontSize: 80, fontWeight: FontWeight.bold, color: Colors.white),
-                   )
-                 ],
-               ),
-             ),
-           ),
-       ],
-    );
-  }
-  
-  // Public getter to check state
-  bool get isActive => _secondsRemaining > 0;
-  int get seconds => _secondsRemaining;
-}
-
-class RestTimerButton extends StatelessWidget {
+class RestTimerButton extends ConsumerWidget {
   const RestTimerButton({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // We assume this is inside RestTimerOverlay. But wait, ActiveSessionScreen uses it directly.
-    // It's better to make RestTimerButton control the Overlay state via context if possible, 
-    // OR we make RestTimerButton completely stand-alone but use an OverlayEntry.
-    // Given the prompt "Overlay UI", the best way is to wrap ActiveSessionScreen's body or root.
-    // However, I can't easily change the parent of ActiveSessionScreen without refactoring navigation.
-    // Let's assume RestTimerButton is responsible for showing the overlay using `Overlay.of`.
-    
-    // Actually, "In-place" UI for timer is what we had. 
-    // The "Overlay" request is for "during the final 10 seconds".
-    // I can stick to my previous implementation but add the "Big Text" overlay specifically.
-    
+  Widget build(BuildContext context, WidgetRef ref) {
     return const _RestTimerInternal();
   }
 }
 
-class _RestTimerInternal extends StatefulWidget {
+class _RestTimerInternal extends ConsumerStatefulWidget {
   const _RestTimerInternal();
   @override
-  State<_RestTimerInternal> createState() => _RestTimerInternalState();
+  ConsumerState<_RestTimerInternal> createState() => _RestTimerInternalState();
 }
 
-class _RestTimerInternalState extends State<_RestTimerInternal> {
+class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
   Timer? _timer;
   int _secondsRemaining = 0;
   final AudioPlayer _player = AudioPlayer();
@@ -152,12 +41,11 @@ class _RestTimerInternalState extends State<_RestTimerInternal> {
           _secondsRemaining--;
         });
         
-        // Show overlay if <= 10
         if (_secondsRemaining <= 10) {
            _showOverlay(true);
         }
 
-        if (_secondsRemaining == 10 && !_alertTriggered) {
+        if (_secondsRemaining <= 10 && !_alertTriggered) {
            _alertTriggered = true;
            bool? hasVibrator = await Vibration.hasVibrator();
            if (hasVibrator == true) {
@@ -179,18 +67,33 @@ class _RestTimerInternalState extends State<_RestTimerInternal> {
   }
   
   void _showOverlay(bool show) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
     if (show && _overlayEntry == null) {
       _overlayEntry = OverlayEntry(builder: (context) {
          return Positioned.fill(
            child: Material(
-             color: Colors.black54,
+             color: Colors.black87,
              child: Center(
                child: Column(
                  mainAxisSize: MainAxisSize.min,
                  children: [
-                   const Text('ПРИГОТОВИТЬСЯ', style: TextStyle(color: Colors.redAccent, fontSize: 36, fontWeight: FontWeight.bold)),
-                   const SizedBox(height: 16),
-                   Text('$_secondsRemaining', style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.bold)),
+                   Text(
+                     'ПРИГОТОВИТЬСЯ', 
+                     style: TextStyle(
+                       color: primaryColor, 
+                       fontSize: 42, 
+                       fontWeight: FontWeight.w900,
+                       letterSpacing: 2,
+                       shadows: [Shadow(color: primaryColor.withOpacity(0.5), blurRadius: 20)]
+                     )
+                   ),
+                   const SizedBox(height: 32),
+                   Text(
+                     '$_secondsRemaining', 
+                     style: const TextStyle(color: Colors.white, fontSize: 100, fontWeight: FontWeight.bold)
+                   ),
                  ],
                ),
              ),
@@ -220,7 +123,7 @@ class _RestTimerInternalState extends State<_RestTimerInternal> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
   
-  Widget _buildPresetButton(String label, int seconds) {
+  Widget _buildPresetButton(String label, int seconds, Color primary) {
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4.0),
@@ -228,11 +131,11 @@ class _RestTimerInternalState extends State<_RestTimerInternal> {
           onPressed: () => startTimer(seconds),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            foregroundColor: const Color(0xFF00E5FF), // High contrast Cyan
-            side: const BorderSide(color: Color(0xFF00E5FF), width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            foregroundColor: primary,
+            side: BorderSide(color: primary, width: 1.5),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
         ),
       ),
     );
@@ -240,42 +143,45 @@ class _RestTimerInternalState extends State<_RestTimerInternal> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+
     if (_secondsRemaining > 0) {
       return Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          border: Border(top: BorderSide(color: const Color(0xFF00E5FF).withOpacity(0.5), width: 2)),
+          color: theme.colorScheme.surface,
+          border: Border(top: BorderSide(color: primary.withOpacity(0.5), width: 2)),
           boxShadow: [
-             BoxShadow(color: const Color(0xFF00E5FF).withOpacity(0.2), blurRadius: 20, spreadRadius: 0)
+             BoxShadow(color: primary.withOpacity(0.2), blurRadius: 20, spreadRadius: 0)
           ]
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.timer, color: Color(0xFF00E5FF), size: 30),
-                const SizedBox(width: 12),
+                Icon(Icons.timer_outlined, color: primary, size: 30),
+                const SizedBox(width: 16),
                 Text(
-                  'Отдых: $timerText',
-                  style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF00E5FF),
-                    shadows: [Shadow(color: Color(0xFF00E5FF), blurRadius: 10)]
+                  'ОТДЫХ: $timerText',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: primary,
+                    letterSpacing: 1,
+                    shadows: [Shadow(color: primary.withOpacity(0.5), blurRadius: 10)]
                   ),
                 ),
                 const SizedBox(width: 24),
                 IconButton(
-                   icon: const Icon(Icons.stop_circle_outlined, size: 36, color: Colors.grey),
+                   icon: const Icon(Icons.stop_circle_rounded, size: 36, color: Colors.grey),
                    onPressed: () {
                      _timer?.cancel();
                      setState(() => _secondsRemaining = 0);
                      _showOverlay(false);
                    },
-                   tooltip: 'Стоп',
                  )
               ],
             ),
@@ -285,18 +191,18 @@ class _RestTimerInternalState extends State<_RestTimerInternal> {
     }
     
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Таймер отдыха', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          Text('ТАЙМЕР ОТДЫХА', style: TextStyle(color: theme.hintColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           const SizedBox(height: 12),
           Row(
             children: [
-              _buildPresetButton('30с', 30),
-              _buildPresetButton('60с', 60),
-              _buildPresetButton('2м', 120),
-              _buildPresetButton('5м', 300),
+              _buildPresetButton('30С', 30, primary),
+              _buildPresetButton('60С', 60, primary),
+              _buildPresetButton('2М', 120, primary),
+              _buildPresetButton('5М', 300, primary),
             ],
           ),
         ],

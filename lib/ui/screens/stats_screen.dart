@@ -1,31 +1,15 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/providers.dart';
-import 'package:intl/intl.dart';
+import 'package:iron_log/progress_provider.dart';
+import 'package:iron_log/ui/app_theme.dart';
+import 'package:iron_log/ui/widgets/progress_chart_widget.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart'; 
-
-class StatsFilter {
-  final int exerciseId;
-  final ExerciseType type;
-  const StatsFilter(this.exerciseId, this.type);
-  
-  @override
-  bool operator ==(Object other) => other is StatsFilter && other.exerciseId == exerciseId && other.type == type;
-  @override
-  int get hashCode => Object.hash(exerciseId, type);
-}
-
-final exerciseHistoryProvider = FutureProvider.family<List<Map<String, dynamic>>, StatsFilter>((ref, filter) async {
-  final service = ref.read(isarServiceProvider);
-  // Finalizing the query correctly with build().findAll()
-  return await service.getExerciseHistory(filter.exerciseId, filter.type);
-});
 
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
@@ -43,7 +27,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedExercise == null ? 'ПРОГРЕСС' : 'АНАЛИТИКА'),
+        title: Text(
+          _selectedExercise == null ? 'АНАЛИТИКА' : 'ПРОГРЕСС', 
+          style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 2)
+        ),
         leading: _selectedExercise != null 
           ? IconButton(
               icon: const Icon(LucideIcons.chevronLeft), 
@@ -55,7 +42,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           : null,
       ),
       body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 400),
         child: _selectedExercise == null 
           ? exercisesAsync.when(
               data: (exercises) => _ExerciseListView(
@@ -90,7 +77,7 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
   Widget build(BuildContext context) {
     final filtered = widget.exercises.where((e) => 
       e.name.toLowerCase().contains(_query.toLowerCase()) || 
-      e.category.toLowerCase().contains(_query.toLowerCase())
+      (e.category?.toLowerCase().contains(_query.toLowerCase()) ?? false)
     ).toList();
     
     final grouped = groupBy(filtered, (e) => (e.category == null || e.category!.isEmpty) ? 'ПРОЧЕЕ' : e.category);
@@ -103,38 +90,34 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(16.0),
           child: TextField(
             decoration: const InputDecoration(
               hintText: 'Поиск упражнения...',
-              prefixIcon: Icon(LucideIcons.search, size: 18),
-              contentPadding: EdgeInsets.symmetric(vertical: 8),
+              prefixIcon: Icon(LucideIcons.search, size: 20),
             ),
             onChanged: (val) => setState(() => _query = val),
           ),
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
             itemCount: keys.length,
             itemBuilder: (context, index) {
               final cat = keys[index];
               final items = grouped[cat]!;
               return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    title: Text(cat!.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
-                    initiallyExpanded: false, // Collapsed by default
-                    children: items.map((e) => ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                      dense: true,
-                      title: Text(e.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      trailing: const Icon(LucideIcons.chevronRight, size: 14),
-                      onTap: () => widget.onSelect(e),
-                    )).toList(),
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ExpansionTile(
+                  title: Text(cat!.toUpperCase(), style: GoogleFonts.bebasNeue(fontSize: 18, letterSpacing: 1)),
+                  initiallyExpanded: false, // Requirement: Collapsed by default
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  children: items.map((e) => ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                    title: Text(e.name, style: GoogleFonts.montserrat(fontWeight: FontWeight.bold, fontSize: 14)),
+                    trailing: const Icon(LucideIcons.chevronRight, size: 16),
+                    onTap: () => widget.onSelect(e),
+                  )).toList(),
                 ),
               );
             },
@@ -145,175 +128,150 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
   }
 }
 
-class _ExerciseDetailView extends StatelessWidget {
+class _ExerciseDetailView extends ConsumerWidget {
   final Exercise exercise;
   const _ExerciseDetailView({required this.exercise, super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(progressHistoryProvider(exercise.id));
+    final metric = ref.watch(progressMetricProvider);
+    final isCardio = exercise.type == ExerciseType.cardio;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Hero(
-            tag: 'ex_${exercise.id}',
-            child: Material(
-              color: Colors.transparent,
-              child: Text(
-                exercise.name.toUpperCase(), 
-                style: GoogleFonts.bebasNeue(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: Theme.of(context).colorScheme.primary,
-                  letterSpacing: 1,
-                )
+          Text(
+            exercise.name.toUpperCase(), 
+            style: GoogleFonts.bebasNeue(fontSize: 28, color: Theme.of(context).colorScheme.primary, letterSpacing: 1.5)
+          ),
+          const SizedBox(height: 8),
+          _MetricSelector(isCardio: isCardio),
+          const SizedBox(height: 32),
+          
+          Container(
+            height: 350,
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: historyAsync.when(
+              data: (data) => ProgressChartWidget(
+                data: data, 
+                themeColor: Theme.of(context).colorScheme.primary,
+                metric: metric,
               ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => Center(child: Text('Ошибка загрузки: $err')),
             ),
           ),
-          Text(
-            exercise.type == ExerciseType.strength ? 'СИЛОВЫЕ / ВЕС' : 'ВЫНОСЛИВОСТЬ / ВРЕМЯ',
-            style: TextStyle(color: Theme.of(context).hintColor, letterSpacing: 1, fontSize: 10, fontWeight: FontWeight.bold),
-          ),
+          
           const SizedBox(height: 24),
-          _ChartSection(exercise: exercise),
+          if (historyAsync.hasValue && historyAsync.value!.isNotEmpty)
+            _LastSessionSummary(point: historyAsync.value!.last, isCardio: isCardio, metric: metric),
         ],
       ),
     );
   }
 }
 
-class _ChartSection extends ConsumerWidget {
-  final Exercise exercise;
-  const _ChartSection({required this.exercise});
+class _MetricSelector extends ConsumerWidget {
+  final bool isCardio;
+  const _MetricSelector({required this.isCardio});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final historyAsync = ref.watch(exerciseHistoryProvider(StatsFilter(exercise.id, exercise.type)));
+    final metric = ref.watch(progressMetricProvider);
 
-    return historyAsync.when(
-      data: (data) {
-        if (data.isEmpty) return const Center(child: Padding(
-          padding: EdgeInsets.all(40.0),
-          child: Text('НЕТ ДАННЫХ ПО ЭТОМУ УПРАЖНЕНИЮ', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 10)),
-        ));
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: isCardio ? [
+          _chip(ref, ProgressMetric.cardioPace, 'ТЕМП (МИН/КМ)', metric),
+          _chip(ref, ProgressMetric.cardioVolume, 'ДИСТАНЦИЯ (КМ)', metric),
+        ] : [
+          _chip(ref, ProgressMetric.strength1RM, 'EST. 1RM (КГ)', metric),
+          _chip(ref, ProgressMetric.strengthVolume, 'ОБЪЕМ (КГ)', metric),
+        ],
+      ),
+    );
+  }
 
-        final isCardio = exercise.type == ExerciseType.cardio;
-        final label = isCardio ? 'ОБЩЕЕ ВРЕМЯ (МИН)' : 'МАКС. ВЕС (КГ)';
-
-        return Column(
-          children: [
-            Container(
-              height: 300,
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: _HistoryChart(data: data, color: Theme.of(context).colorScheme.primary),
-            ),
-            const SizedBox(height: 12),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.grey, letterSpacing: 1)),
-          ],
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Text('ОШИБКА: $err'),
+  Widget _chip(WidgetRef ref, ProgressMetric m, String label, ProgressMetric current) {
+    final selected = m == current;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label, style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: selected ? Colors.black : Colors.white70)),
+        selected: selected,
+        onSelected: (val) {
+          if (val) {
+            HapticFeedback.lightImpact();
+            ref.read(progressMetricProvider.notifier).state = m;
+          }
+        },
+        selectedColor: ref.read(currentThemeProvider).colorScheme.primary,
+      ),
     );
   }
 }
 
-class _HistoryChart extends StatefulWidget {
-  final List<Map<String, dynamic>> data;
-  final Color color;
-  const _HistoryChart({required this.data, required this.color});
+class _LastSessionSummary extends StatelessWidget {
+  final ProgressDataPoint point;
+  final bool isCardio;
+  final ProgressMetric metric;
 
-  @override
-  State<_HistoryChart> createState() => _HistoryChartState();
-}
-
-class _HistoryChartState extends State<_HistoryChart> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 1));
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  const _LastSessionSummary({required this.point, required this.isCardio, required this.metric});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        final spots = widget.data.asMap().entries.map((e) {
-          return FlSpot(e.key.toDouble(), (e.value['value'] as num).toDouble() * _animation.value);
-        }).toList();
+    String label = 'РЕЗУЛЬТАТ';
+    String value = point.value.toStringAsFixed(1);
+    
+    if (metric == ProgressMetric.strength1RM) label = 'РАСЧЕТНЫЙ 1RM';
+    if (metric == ProgressMetric.strengthVolume) label = 'ОБЩИЙ ОБЪЕМ';
+    if (metric == ProgressMetric.cardioPace) label = 'ТЕМП СЕССИИ';
+    if (metric == ProgressMetric.cardioVolume) label = 'ДИСТАНЦИЯ';
 
-        double maxY = (widget.data.map((e) => (e['value'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.2;
-        if (maxY == 0) maxY = 10;
-
-        return LineChart(
-          LineChartData(
-            minY: 0,
-            maxY: maxY,
-            gridData: const FlGridData(show: false),
-            titlesData: FlTitlesData(
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 24,
-                  getTitlesWidget: (v, m) {
-                    int i = v.toInt();
-                    if (i >= 0 && i < widget.data.length && (widget.data.length < 5 || i % (widget.data.length ~/ 2) == 0)) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(DateFormat('d.MM').format(widget.data[i]['date']), style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  }
-                )
-              ),
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 32, getTitlesWidget: (v, m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.bold)))),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            lineTouchData: LineTouchData(
-               touchTooltipData: LineTouchTooltipData(
-                 getTooltipColor: (_) => Colors.black87,
-                 getTooltipItems: (touchedSpots) {
-                    return touchedSpots.map((s) => LineTooltipItem('${s.y.toInt()}', const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10))).toList();
-                 }
-               )
-            ),
-            borderData: FlBorderData(show: false),
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots,
-                isCurved: true,
-                color: widget.color,
-                barWidth: 4,
-                isStrokeCapRound: true,
-                dotData: FlDotData(show: true, getDotPainter: (spot, p, bar, i) => FlDotCirclePainter(radius: 3, color: Colors.black, strokeColor: widget.color, strokeWidth: 2)),
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(colors: [widget.color.withOpacity(0.3), widget.color.withOpacity(0)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Text(value, style: GoogleFonts.bebasNeue(fontSize: 24, letterSpacing: 1)),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('ИЗМЕНЕНИЕ', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+              const SizedBox(height: 4),
+              Text(
+                '${point.percentChange >= 0 ? '+' : ''}${point.percentChange.toStringAsFixed(1)}%',
+                style: GoogleFonts.bebasNeue(
+                  fontSize: 24, 
+                  color: point.percentChange >= 0 ? Colors.greenAccent : Colors.redAccent,
+                  letterSpacing: 1
                 ),
               ),
             ],
-          ),
-        );
-      },
+          )
+        ],
+      ),
     );
   }
 }

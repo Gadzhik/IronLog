@@ -379,6 +379,13 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
                }
             },
           ),
+          IconButton(
+            icon: const Icon(LucideIcons.trash2, size: 16, color: Colors.grey),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              ref.read(activeSessionProvider.notifier).removeSet(widget.entryIndex, widget.setIndex);
+            },
+          ),
         ],
       ),
     );
