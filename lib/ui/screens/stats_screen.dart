@@ -5,31 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/providers.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart'; 
 
 class StatsFilter {
   final int exerciseId;
-  final Duration? range; 
-  
-  const StatsFilter(this.exerciseId, this.range);
+  const StatsFilter(this.exerciseId);
   
   @override
-  bool operator ==(Object other) => other is StatsFilter && 
-      other.exerciseId == exerciseId && 
-      other.range == range;
-      
+  bool operator ==(Object other) => other is StatsFilter && other.exerciseId == exerciseId;
   @override
-  int get hashCode => Object.hash(exerciseId, range);
+  int get hashCode => exerciseId.hashCode;
 }
 
 final maxWeightHistoryProvider = FutureProvider.family<List<Map<String, dynamic>>, StatsFilter>((ref, filter) async {
   final service = ref.read(isarServiceProvider);
-  DateTime? after;
-  if (filter.range != null) {
-    after = DateTime.now().subtract(filter.range!);
-  }
-  return service.getMaxWeightHistory(filter.exerciseId, after: after);
+  return service.getMaxWeightHistory(filter.exerciseId);
 });
 
 class StatsScreen extends ConsumerStatefulWidget {
@@ -41,184 +33,188 @@ class StatsScreen extends ConsumerStatefulWidget {
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
   Exercise? _selectedExercise;
-  
-  final Map<String, Duration?> _ranges = {
-    'Неделя': const Duration(days: 7),
-    'Месяц': const Duration(days: 30),
-    'Все время': null,
-  };
-  String? _selectedRangeKey = 'Все время';
-
-  void _showExercisePicker(List<Exercise> exercises) {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet(
-      context: context, 
-      isScrollControlled: true, 
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-       return _ExercisePicker(exercises: exercises, onSelect: (e) {
-         HapticFeedback.selectionClick();
-         setState(() => _selectedExercise = e);
-         Navigator.pop(context);
-       });
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
-    final range = _selectedRangeKey != null ? _ranges[_selectedRangeKey] : null;
-    final exercisesAsync = ref.watch(exercisesForRangeProvider(range));
+    final exercisesAsync = ref.watch(allExercisesProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Прогресс', style: TextStyle(fontWeight: FontWeight.bold)),
-        elevation: 0,
+        title: const Text('Прогресс'),
+        leading: _selectedExercise != null 
+          ? IconButton(
+              icon: const Icon(LucideIcons.chevronLeft), 
+              onPressed: () => setState(() => _selectedExercise = null)
+            ) 
+          : null,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              exercisesAsync.when(
-                data: (exercises) {
-                  if (exercises.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32.0),
-                        child: Column(
-                          children: [
-                            Icon(Icons.history, size: 48, color: Theme.of(context).disabledColor),
-                            const SizedBox(height: 16),
-                            const Text('Нет данных за этот период', style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-                  
-                  return InkWell(
-                    onTap: () => _showExercisePicker(exercises),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.1)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _selectedExercise?.name ?? 'Выберите упражнение', 
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: _selectedExercise == null ? Colors.grey : null,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-                loading: () => const LinearProgressIndicator(),
-                error: (err, _) => Text('Ошибка: $err'),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _selectedExercise == null 
+          ? exercisesAsync.when(
+              data: (exercises) => _ExerciseListView(
+                exercises: exercises, 
+                onSelect: (e) => setState(() => _selectedExercise = e)
               ),
-              const SizedBox(height: 16),
-              
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _ranges.keys.map((key) {
-                    final isSelected = _selectedRangeKey == key;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(key),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          if (selected) {
-                            HapticFeedback.lightImpact();
-                            setState(() => _selectedRangeKey = key);
-                          }
-                        },
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              if (_selectedExercise != null) ...[
-                Text(
-                  'Максимальный вес',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-              ],
-              
-              SizedBox(
-                height: 320,
-                child: _selectedExercise == null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.bar_chart_rounded, size: 64, color: Theme.of(context).colorScheme.primary.withOpacity(0.1)),
-                            const SizedBox(height: 16),
-                            const Text('Выберите упражнение для анализа', style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                      )
-                    : _AnimatedChart(
-                        exerciseId: _selectedExercise!.id,
-                        range: range,
-                      ),
-              ),
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => Center(child: Text('Error: $err')),
+            )
+          : _ExerciseDetailView(exercise: _selectedExercise!),
       ),
     );
   }
 }
 
-class _AnimatedChart extends StatefulWidget {
-  final int exerciseId;
-  final Duration? range;
-  const _AnimatedChart({required this.exerciseId, required this.range});
+class _ExerciseListView extends StatefulWidget {
+  final List<Exercise> exercises;
+  final ValueChanged<Exercise> onSelect;
+  const _ExerciseListView({required this.exercises, required this.onSelect});
 
   @override
-  State<_AnimatedChart> createState() => _AnimatedChartState();
+  State<_ExerciseListView> createState() => _ExerciseListViewState();
 }
 
-class _AnimatedChartState extends State<_AnimatedChart> with SingleTickerProviderStateMixin {
+class _ExerciseListViewState extends State<_ExerciseListView> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.exercises.where((e) => 
+      e.name.toLowerCase().contains(_query.toLowerCase()) || 
+      e.category.toLowerCase().contains(_query.toLowerCase())
+    ).toList();
+    
+    final grouped = groupBy(filtered, (e) => e.category);
+    final keys = grouped.keys.toList()..sort();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            decoration: const InputDecoration(
+              hintText: 'Поиск упражнения...',
+              prefixIcon: Icon(LucideIcons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            ),
+            onChanged: (val) => setState(() => _query = val),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: keys.length,
+            itemBuilder: (context, index) {
+              final cat = keys[index];
+              final items = grouped[cat]!;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      cat, 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 14,
+                      )
+                    ),
+                  ),
+                  ...items.map((e) => ListTile(
+                    leading: const Icon(LucideIcons.dumbbell, size: 20),
+                    title: Text(e.name),
+                    trailing: const Icon(LucideIcons.chevronRight, size: 16),
+                    onTap: () => widget.onSelect(e),
+                  )),
+                  const Divider(indent: 16, endIndent: 16, height: 1),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExerciseDetailView extends StatelessWidget {
+  final Exercise exercise;
+  const _ExerciseDetailView({required this.exercise});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            exercise.name, 
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)
+          ),
+          Text(exercise.category, style: TextStyle(color: Theme.of(context).hintColor)),
+          const SizedBox(height: 24),
+          _ChartSection(exercise: exercise),
+          const SizedBox(height: 24),
+          // History list could go here if needed...
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartSection extends ConsumerWidget {
+  final Exercise exercise;
+  const _ChartSection({required this.exercise});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(maxWeightHistoryProvider(StatsFilter(exercise.id)));
+
+    return historyAsync.when(
+      data: (data) {
+        if (data.isEmpty) return const Center(child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Text('Нет данных для прогресса'),
+        ));
+
+        data.sort((a, b) => (a['date'] as DateTime).compareTo(b['date']));
+
+        return Column(
+          children: [
+            SizedBox(
+              height: 300,
+              child: _AnimatedLineChart(data: data),
+            ),
+            const SizedBox(height: 16),
+            const Text('Максимальный вес по датам', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        );
+      },
+      loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+      error: (err, _) => Text('Error: $err'),
+    );
+  }
+}
+
+class _AnimatedLineChart extends StatefulWidget {
+  final List<Map<String, dynamic>> data;
+  const _AnimatedLineChart({required this.data});
+
+  @override
+  State<_AnimatedLineChart> createState() => _AnimatedLineChartState();
+}
+
+class _AnimatedLineChartState extends State<_AnimatedLineChart> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic);
     _controller.forward();
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedChart oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.exerciseId != oldWidget.exerciseId || widget.range != oldWidget.range) {
-      _controller.reset();
-      _controller.forward();
-    }
   }
 
   @override
@@ -232,51 +228,14 @@ class _AnimatedChartState extends State<_AnimatedChart> with SingleTickerProvide
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
-        return _ChartWidget(
-          exerciseId: widget.exerciseId,
-          range: widget.range,
-          animationValue: _animation.value,
-        );
-      },
-    );
-  }
-}
-
-class _ChartWidget extends ConsumerWidget {
-  final int exerciseId;
-  final Duration? range;
-  final double animationValue;
-  
-  const _ChartWidget({required this.exerciseId, required this.range, required this.animationValue});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final filter = StatsFilter(exerciseId, range);
-    final historyAsync = ref.watch(maxWeightHistoryProvider(filter));
-
-    return historyAsync.when(
-      data: (data) {
-        if (data.isEmpty) return const Center(child: Text('Нет данных за этот период'));
-        
-        data.sort((a, b) => (a['date'] as DateTime).compareTo(b['date']));
-        
-        final spots = data.asMap().entries.map((e) {
-          // Multiply Y by animationValue for draw-in effect
-          return FlSpot(e.key.toDouble(), (e.value['weight'] as num).toDouble() * animationValue);
+        final spots = widget.data.asMap().entries.map((e) {
+          return FlSpot(e.key.toDouble(), (e.value['weight'] as num).toDouble() * _animation.value);
         }).toList();
 
-        double minY = spots.map((e) => e.y).reduce((a, b) => a < b ? a : b);
-        double maxY = (data.map((e) => (e['weight'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.1;
-        
-        if (minY == maxY) {
-          minY = 0;
-          maxY = (maxY == 0) ? 10 : maxY * 1.5;
-        }
+        double maxY = (widget.data.map((e) => (e['weight'] as num).toDouble()).reduce((a, b) => a > b ? a : b)) * 1.2;
+        if (maxY == 0) maxY = 10;
 
-        String formatWeight(double val) {
-           if (val == val.toInt().toDouble()) return val.toInt().toString();
-           return val.toStringAsFixed(1);
-        }
+        String format(double val) => val % 1 == 0 ? val.toInt().toString() : val.toStringAsFixed(1);
 
         return LineChart(
           LineChartData(
@@ -285,30 +244,21 @@ class _ChartWidget extends ConsumerWidget {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              horizontalInterval: (maxY / 5).clamp(1, double.infinity),
-              getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).dividerColor.withOpacity(0.05), strokeWidth: 1),
+              getDrawingHorizontalLine: (val) => FlLine(color: Theme.of(context).dividerColor.withOpacity(0.05)),
             ),
             titlesData: FlTitlesData(
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  reservedSize: 32,
-                  interval: 1, 
+                  reservedSize: 30,
+                  interval: 1,
                   getTitlesWidget: (val, meta) {
-                    final index = val.toInt();
-                    if (index >= 0 && index < data.length) {
-                       int step = (data.length / 4).ceil();
-                       if (step < 1) step = 1;
-                       if (index % step != 0 && index != data.length - 1) return const SizedBox.shrink();
-
-                       final date = data[index]['date'] as DateTime;
-                       return Padding(
-                         padding: const EdgeInsets.only(top: 8.0),
-                         child: Text(
-                           DateFormat('d MMM').format(date),
-                           style: TextStyle(fontSize: 10, color: Theme.of(context).hintColor, fontWeight: FontWeight.bold),
-                         ),
-                       );
+                    final i = val.toInt();
+                    if (i >= 0 && i < widget.data.length && (widget.data.length < 5 || i % (widget.data.length ~/ 4) == 0)) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(DateFormat('d.MM').format(widget.data[i]['date']), style: const TextStyle(fontSize: 10)),
+                      );
                     }
                     return const SizedBox.shrink();
                   },
@@ -318,10 +268,7 @@ class _ChartWidget extends ConsumerWidget {
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 40,
-                  getTitlesWidget: (val, meta) => Text(
-                    formatWeight(val), 
-                    style: TextStyle(color: Theme.of(context).hintColor, fontSize: 11)
-                  ),
+                  getTitlesWidget: (val, meta) => Text(format(val), style: const TextStyle(fontSize: 10)),
                 ),
               ),
               topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -332,138 +279,31 @@ class _ChartWidget extends ConsumerWidget {
               LineChartBarData(
                 spots: spots,
                 isCurved: true,
-                curveSmoothness: 0.35,
                 color: Theme.of(context).colorScheme.primary,
-                barWidth: 5,
-                isStrokeCapRound: true,
+                barWidth: 4,
                 dotData: FlDotData(
-                   show: true,
-                   getDotPainter: (spot, percent, barData, index) {
-                      return FlDotCirclePainter(
-                         radius: 4,
-                         strokeWidth: 2.5,
-                         color: Theme.of(context).scaffoldBackgroundColor,
-                         strokeColor: Theme.of(context).colorScheme.primary,
-                      );
-                   }
+                  show: true,
+                  getDotPainter: (spot, p, bar, i) => FlDotCirclePainter(
+                    radius: 4, 
+                    color: Theme.of(context).scaffoldBackgroundColor, 
+                    strokeColor: Theme.of(context).colorScheme.primary, 
+                    strokeWidth: 2
+                  ),
                 ),
                 belowBarData: BarAreaData(
                   show: true,
                   gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                      Theme.of(context).colorScheme.primary.withOpacity(0.0),
-                    ],
+                    colors: [Theme.of(context).colorScheme.primary.withOpacity(0.2), Colors.transparent],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
                 ),
               ),
             ],
-            lineTouchData: LineTouchData(
-               touchTooltipData: LineTouchTooltipData(
-                 getTooltipColor: (spot) => Theme.of(context).colorScheme.surface,
-                 getTooltipItems: (spots) {
-                   return spots.map((spot) {
-                     final index = spot.x.toInt();
-                     final date = data[index]['date'] as DateTime;
-                     return LineTooltipItem(
-                       '${formatWeight(spot.y / animationValue)} кг\n',
-                       TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold),
-                       children: [
-                         TextSpan(
-                           text: DateFormat('d MMMM').format(date),
-                           style: TextStyle(color: Theme.of(context).hintColor, fontWeight: FontWeight.normal, fontSize: 12),
-                         )
-                       ]
-                     );
-                   }).toList();
-                 }
-               ),
-            ),
           ),
-          duration: const Duration(milliseconds: 0), // Turned off fl_chart internal animation to use AnimatedBuilder
+          duration: const Duration(milliseconds: 0),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Ошибка: $err')),
     );
-  }
-}
-
-class _ExercisePicker extends StatefulWidget {
-  final List<Exercise> exercises;
-  final ValueChanged<Exercise> onSelect;
-  const _ExercisePicker({required this.exercises, required this.onSelect});
-
-  @override
-  State<_ExercisePicker> createState() => _ExercisePickerState();
-}
-
-class _ExercisePickerState extends State<_ExercisePicker> {
-  String _query = '';
-  
-  @override
-  Widget build(BuildContext context) {
-      final filtered = widget.exercises.where((e) => 
-         e.name.toLowerCase().contains(_query.toLowerCase()) || 
-         e.category.toLowerCase().contains(_query.toLowerCase())
-      ).toList();
-      
-      final grouped = groupBy(filtered, (e) => e.category);
-      final keys = grouped.keys.toList()..sort();
-
-      return DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (_, controller) {
-           return Container(
-             padding: const EdgeInsets.only(top: 8),
-             child: Column(
-               children: [
-                 Container(
-                   width: 40,
-                   height: 4,
-                   margin: const EdgeInsets.only(bottom: 16),
-                   decoration: BoxDecoration(
-                     color: Colors.grey[300],
-                     borderRadius: BorderRadius.circular(2),
-                   ),
-                 ),
-                 Padding(
-                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                   child: TextField(
-                     decoration: const InputDecoration(
-                       hintText: 'Поиск...',
-                       prefixIcon: Icon(Icons.search_rounded),
-                     ),
-                     onChanged: (val) => setState(() => _query = val),
-                   ),
-                 ),
-                 const SizedBox(height: 8),
-                 Expanded(
-                   child: ListView(
-                     controller: controller,
-                     children: keys.map((cat) {
-                       return ExpansionTile(
-                         title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold)),
-                         initiallyExpanded: filtered.length < 20, 
-                         children: grouped[cat]!.map((e) => ListTile(
-                           contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                           visualDensity: VisualDensity.compact,
-                           title: Text(e.name),
-                           onTap: () => widget.onSelect(e),
-                         )).toList(),
-                       );
-                     }).toList(),
-                   ),
-                 )
-               ],
-             ),
-           );
-        }
-      );
   }
 }

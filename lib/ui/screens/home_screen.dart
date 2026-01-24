@@ -7,7 +7,7 @@ import 'package:iron_log/ui/screens/active_session_screen.dart';
 import 'package:iron_log/ui/screens/stats_screen.dart';
 import 'package:iron_log/ui/screens/workout_detail_screen.dart';
 import 'package:flutter/services.dart';
-
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:iron_log/ui/app_theme.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -31,28 +31,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: _tabs[_currentIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        onDestinationSelected: (index) {
+          HapticFeedback.selectionClick();
+          setState(() => _currentIndex = index);
+        },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.fitness_center),
-            label: 'Мои тренировки',
+            icon: Icon(LucideIcons.list),
+            selectedIcon: Icon(LucideIcons.list, color: Colors.white),
+            label: 'Тренировки',
           ),
           NavigationDestination(
-            icon: Icon(Icons.show_chart),
+            icon: Icon(LucideIcons.trendingUp),
+            selectedIcon: Icon(LucideIcons.trendingUp, color: Colors.white),
             label: 'Прогресс',
           ),
         ],
       ),
       floatingActionButton: _currentIndex == 0 ? FloatingActionButton.extended(
         onPressed: () {
+          HapticFeedback.lightImpact();
           ref.read(activeSessionProvider.notifier).startSession();
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ActiveSessionScreen()),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const ActiveSessionScreen()));
         },
         label: const Text('Новая тренировка'),
-        icon: const Icon(Icons.add),
+        icon: const Icon(LucideIcons.plus),
       ) : null,
     );
   }
@@ -67,8 +70,20 @@ class HistoryTab extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Мои тренировки'),
+        title: const Text('IronLog'),
         actions: [
+          PopupMenuButton<AppThemeType>(
+            icon: const Icon(LucideIcons.palette),
+            onSelected: (val) {
+               HapticFeedback.lightImpact();
+               ref.read(themeProvider.notifier).setTheme(val);
+            },
+            itemBuilder: (context) => [
+               const PopupMenuItem(value: AppThemeType.light, child: Text('Комфорт')),
+               const PopupMenuItem(value: AppThemeType.toxic, child: Text('Токсик')),
+               const PopupMenuItem(value: AppThemeType.midnight, child: Text('Midnight')),
+            ],
+          ),
           PopupMenuButton<String>(
             onSelected: (val) async {
               if (val == 'export') {
@@ -81,45 +96,19 @@ class HistoryTab extends ConsumerWidget {
                         TextButton(
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: json));
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied to clipboard')));
                             Navigator.pop(context);
                           },
-                          child: const Text('Copy'),
+                          child: const Text('Копировать'),
                         )
                       ],
                     ));
                  }
-              } else if (val == 'clear') {
-                 showDialog(context: context, builder: (_) => AlertDialog(
-                    title: const Text('Удалить всё?'),
-                    content: const Text('Это действие нельзя отменить.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-                      TextButton(onPressed: () async {
-                         await ref.read(isarServiceProvider).clearAllData();
-                         if (context.mounted) Navigator.pop(context);
-                      }, child: const Text('Удалить', style: TextStyle(color: Colors.red))),
-                    ],
-                 ));
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'export', child: Text('Экспорт JSON')),
-              const PopupMenuItem(value: 'clear', child: Text('Очистить всё', style: TextStyle(color: Colors.red))),
+              const PopupMenuItem(value: 'export', child: Text('Экспорт')),
             ],
           ),
-          PopupMenuButton<AppThemeType>(
-            icon: const Icon(Icons.color_lens),
-            onSelected: (val) {
-               ref.read(themeProvider.notifier).setTheme(val);
-            },
-            itemBuilder: (context) => [
-               const PopupMenuItem(value: AppThemeType.midnight, child: Text('Полночь')),
-               const PopupMenuItem(value: AppThemeType.iron, child: Text('Сталь')),
-               const PopupMenuItem(value: AppThemeType.toxic, child: Text('Токсик')),
-               const PopupMenuItem(value: AppThemeType.light, child: Text('Светлая')),
-            ],
-          )
         ],
       ),
       body: historyAsync.when(
@@ -129,7 +118,7 @@ class HistoryTab extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   Icon(Icons.history, size: 64, color: Colors.grey[800]),
+                   Icon(LucideIcons.history, size: 64, color: Theme.of(context).dividerColor),
                    const SizedBox(height: 16),
                    const Text('Нет тренировок', style: TextStyle(color: Colors.grey)),
                 ],
@@ -137,47 +126,42 @@ class HistoryTab extends ConsumerWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
               final session = sessions[index];
-              // Feature: Swipe-to-Right for details
               return Dismissible(
                 key: ValueKey(session.id),
-                // Allow swipe both ways logic? 
-                // Right (startToEnd): Details
-                // Left (endToStart): Delete
                 background: Container(
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.only(left: 20),
-                  color: Colors.blue,
-                  child: const Icon(Icons.visibility, color: Colors.white),
+                  color: Colors.blue.withOpacity(0.2),
+                  child: const Icon(LucideIcons.eye, color: Colors.blue),
                 ),
                 secondaryBackground: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),
-                  color: Colors.red,
-                  child: const Icon(Icons.delete, color: Colors.white),
+                  color: Colors.red.withOpacity(0.2),
+                  child: const Icon(LucideIcons.trash2, color: Colors.red),
                 ),
                 confirmDismiss: (direction) async {
                   if (direction == DismissDirection.startToEnd) {
-                     // Navigate to details
                      Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
-                     return false; // Don't dismiss
+                     return false;
                   } else {
-                     return true; // Proceed to onDismissed for delete
+                     return true; 
                   }
                 },
-                onDismissed: (direction) {
-                  if (direction == DismissDirection.endToStart) {
-                    ref.read(isarServiceProvider).deleteWorkout(session.id);
-                  }
+                onDismissed: (_) {
+                  HapticFeedback.mediumImpact();
+                  ref.read(isarServiceProvider).deleteWorkout(session.id);
                 },
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
-                  },
-                  child: WorkoutHistoryCard(session: session),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session))),
+                    child: WorkoutHistoryCard(session: session),
+                  ),
                 ),
               );
             },
@@ -196,13 +180,13 @@ class WorkoutHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateStr = DateFormat('d MMMM yyyy, HH:mm', 'ru').format(session.startTime);
+    final dateStr = DateFormat('d MMMM, HH:mm', 'ru').format(session.startTime);
     final duration = session.endTime != null 
         ? session.endTime!.difference(session.startTime).inMinutes 
         : 0;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -215,47 +199,30 @@ class WorkoutHistoryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       if (session.name != null && session.name!.isNotEmpty)
-                         Text(
-                            session.name!, 
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
-                         ),
                        Text(
-                        dateStr,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
+                         session.name?.isNotEmpty == true ? session.name! : 'Тренировка', 
+                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                       ),
+                       Text(dateStr, style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12)),
                     ],
                   ),
                 ),
                 if (duration > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '$duration мин',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(8)),
+                    child: Text('$duration мин', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold)),
                   ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              '${session.entries.length} упражнений',
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: session.entries.take(3).map((e) => Chip(
-                label: Text(e.exerciseName ?? 'Упражнение'),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                backgroundColor: Colors.black26,
+              runSpacing: 4,
+              children: session.entries.take(3).map((e) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Theme.of(context).dividerColor.withOpacity(0.05), borderRadius: BorderRadius.circular(20)),
+                child: Text(e.exerciseName ?? '-', style: const TextStyle(fontSize: 10, color: Colors.grey)),
               )).toList(),
             ),
           ],

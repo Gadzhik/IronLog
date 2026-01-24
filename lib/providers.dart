@@ -13,6 +13,8 @@ final exercisesProvider = FutureProvider<List<Exercise>>((ref) async {
   return await service.getAllExercises();
 });
 
+final allExercisesProvider = exercisesProvider;
+
 final searchExerciseProvider = FutureProvider.family<List<Exercise>, String>((ref, query) async {
   final service = ref.read(isarServiceProvider);
   if (query.isEmpty) return service.getAllExercises();

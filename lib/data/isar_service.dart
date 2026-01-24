@@ -55,9 +55,8 @@ class IsarService {
         await isar.exercises.putAll(exercises);
       });
     } else {
-       // Feature: Ensure All Cardio exercises exist including Aerobike & Stepper
+       // Migration/Ensuring
        final cardios = ['Беговая дорожка', 'Велотренажер', 'Эллипс', 'Гребля', 'Аэробайк', 'Степпер'];
-       
        for (var name in cardios) {
           final exists = await isar.exercises.filter().nameEqualTo(name).count() > 0;
           if (!exists) {
@@ -73,16 +72,19 @@ class IsarService {
   // CRUD Helpers
   Future<List<Exercise>> getAllExercises() async {
     final isar = await db;
-    return isar.exercises.where().findAll();
+    // Fix: Using a typed query chain and ensuring it is finalized.
+    final QueryBuilder<Exercise, Exercise, QAfterSortBy> query = isar.exercises.where().sortByName();
+    return query.findAll();
   }
   
-  Future<List<Exercise>> searchExercises(String query) async {
+  Future<List<Exercise>> searchExercises(String queryStr) async {
     final isar = await db;
     return isar.exercises
         .filter()
-        .nameContains(query, caseSensitive: false)
+        .nameContains(queryStr, caseSensitive: false)
         .or()
-        .categoryContains(query, caseSensitive: false)
+        .categoryContains(queryStr, caseSensitive: false)
+        .sortByName()
         .findAll();
   }
 
@@ -123,11 +125,7 @@ class IsarService {
   // Smart: Export
   Future<String> exportData() async {
     final isar = await db;
-    final sessions = await isar.workoutSessions.where().findAll();
-    // Simple JSON export logic
-    // Nested objects need toJson or manual map. 
-    // Since we used Isar generator, we might verify if toJson is generated or do it manually.
-    // Manual map for safety:
+    final sessions = await isar.workoutSessions.where().sortByStartTimeDesc().findAll();
     final data = sessions.map((s) => {
       'startTime': s.startTime.toIso8601String(),
       'endTime': s.endTime?.toIso8601String(),

@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/providers.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart'; 
-// We are using collection for grouping. It is safe because flutter_test usually pulls it in,
-// or we can just implement manual grouping if users env is strict.
-// It was added in previous steps implicitly or explicitly? 
-// Let's assume manual grouping if package import fails, but `collection` is standard.
 
 class ExerciseSelectionScreen extends ConsumerStatefulWidget {
   const ExerciseSelectionScreen({super.key});
@@ -22,11 +19,7 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() {
-      setState(() {
-        _query = _searchController.text;
-      });
-    });
+    _searchController.addListener(() => setState(() => _query = _searchController.text));
   }
   
   @override
@@ -50,9 +43,10 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
             child: TextField(
               controller: _searchController,
               decoration: const InputDecoration(
-                hintText: 'Поиск упражнения',
-                prefixIcon: Icon(Icons.search),
+                hintText: 'Поиск...',
+                prefixIcon: Icon(LucideIcons.search, size: 20),
                 filled: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
               ),
             ),
           ),
@@ -60,54 +54,25 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
             child: exercisesAsync.when(
               data: (exercises) {
                 if (exercises.isEmpty) {
-                  return const Center(child: Text('Упражнения не найдены'));
+                  return const Center(child: Text('Ничего не найдено', style: TextStyle(color: Colors.grey)));
                 }
 
-                // Feature: Categorization
-                // If search query is active, show flat list for speed.
-                // If no search query, show grouped list.
-                
-                if (_query.isNotEmpty) {
-                   return ListView.separated(
-                    itemCount: exercises.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.white10),
-                    itemBuilder: (context, index) {
-                      final exercise = exercises[index];
-                      return ListTile(
-                        title: Text(exercise.name),
-                        subtitle: Text(exercise.category),
-                        trailing: const Icon(Icons.add_circle_outline),
-                        onTap: () {
-                          ref.read(activeSessionProvider.notifier).addExercise(exercise);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
-                  );
-                }
-
-                // Group by category
                 final grouped = groupBy(exercises, (e) => e.category);
-                // Sort categories
                 final sortedKeys = grouped.keys.toList()..sort();
 
                 return ListView(
+                  padding: const EdgeInsets.only(bottom: 40),
                   children: sortedKeys.map((category) {
                     final categoryExercises = grouped[category]!;
                     return ExpansionTile(
-                      title: Text(
-                        category, 
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary, 
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      initiallyExpanded: false, // Keep closed to save space initially
+                      leading: Icon(_getCategoryIcon(category), size: 18, color: Theme.of(context).colorScheme.primary),
+                      title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      initiallyExpanded: _query.isNotEmpty,
                       children: categoryExercises.map((exercise) {
                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                             title: Text(exercise.name),
-                            trailing: const Icon(Icons.add, color: Colors.grey),
+                            trailing: const Icon(LucideIcons.plus, size: 16, color: Colors.grey),
                             onTap: () {
                                ref.read(activeSessionProvider.notifier).addExercise(exercise);
                                Navigator.pop(context);
@@ -125,5 +90,17 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
         ],
       ),
     );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'грудь': return LucideIcons.circleDot;
+      case 'спина': return LucideIcons.layers;
+      case 'ноги': return LucideIcons.footprints;
+      case 'кардио': return LucideIcons.heartPulse;
+      case 'руки': return LucideIcons.armchair; // Placeholder
+      case 'плечи': return LucideIcons.moveUp;
+      default: return LucideIcons.dumbbell;
+    }
   }
 }

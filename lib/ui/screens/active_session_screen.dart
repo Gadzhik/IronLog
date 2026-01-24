@@ -6,6 +6,8 @@ import 'package:iron_log/data/models/workout_session.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/ui/screens/exercise_selection_screen.dart';
 import 'package:iron_log/ui/widgets/rest_timer.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:confetti/confetti.dart';
 
 class ActiveSessionScreen extends ConsumerStatefulWidget {
   const ActiveSessionScreen({super.key});
@@ -16,6 +18,19 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   final _formKey = GlobalKey<FormState>();
+  late ConfettiController _confettiController;
+
+  @override
+  void initState() {
+    super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,94 +44,92 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Текущая тренировка'),
+        title: const Text('Тренировка'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.check),
+            icon: const Icon(LucideIcons.check),
             onPressed: () async {
-              // Feature: GlobalKey Form Validation
               if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Заполните все обязательные поля!'))
+                    const SnackBar(content: Text('Заполните данные!'))
                  );
                  return;
               }
               
-              // Fallback logic check for empty sets not caught by form (if any)
-              bool hasBroadlyInvalidSets = session.entries.any((e) => e.sets.any((s) => 
-                 (e.exerciseType == ExerciseType.strength && (s.weight <= 0 && s.reps <= 0)) ||
-                 (e.exerciseType == ExerciseType.cardio && (s.distance <= 0 && s.duration <= 0))
-              ));
-               
-              if (hasBroadlyInvalidSets) {
-                 ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Проверьте пустые подходы!'))
-                 );
-                 return;
-              }
-
+              HapticFeedback.mediumImpact();
+              _confettiController.play();
+              
               await ref.read(activeSessionProvider.notifier).finishSession();
-              HapticFeedback.heavyImpact();
-              if (context.mounted) Navigator.pop(context);
+              
+              Future.delayed(const Duration(milliseconds: 1500), () {
+                if (mounted) Navigator.pop(context);
+              });
             },
             tooltip: 'Завершить',
           )
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: TextFormField(
-                initialValue: session.name,
-                decoration: const InputDecoration(
-                  labelText: 'Название тренировки',
-                  prefixIcon: Icon(Icons.edit_rounded),
+      body: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: TextFormField(
+                    initialValue: session.name,
+                    decoration: const InputDecoration(
+                      labelText: 'Название тренировки',
+                      prefixIcon: Icon(LucideIcons.edit3, size: 20),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                    ),
+                    onChanged: (val) => ref.read(activeSessionProvider.notifier).updateName(val),
+                  ),
                 ),
-                onChanged: (val) {
-                  ref.read(activeSessionProvider.notifier).updateName(val);
-                },
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                 child: Column(
-                   children: [
-                     ...List.generate(session.entries.length + 1, (index) {
-                        if (index == session.entries.length) {
-                          return Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                 HapticFeedback.lightImpact();
-                                 Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()),
-                                );
-                              },
-                              icon: const Icon(Icons.add_rounded),
-                              label: const Text('Добавить упражнение'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: session.entries.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == session.entries.length) {
+                        return Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                               HapticFeedback.lightImpact();
+                               Navigator.push(context, MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()));
+                            },
+                            icon: const Icon(LucideIcons.plus),
+                            label: const Text('Добавить упражнение'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                          );
-                        }
-                        
-                        final entry = session.entries[index];
-                        return ExerciseEntryCard(entryIndex: index, entry: entry);
-                     }),
-                     const SizedBox(height: 100), // Space for timer
-                   ],
-                 ),
-              ),
+                          ),
+                        );
+                      }
+                      return ExerciseEntryCard(entryIndex: index, entry: session.entries[index]);
+                    },
+                  ),
+                ),
+                const RestTimerButton(),
+              ],
             ),
-            const RestTimerButton(),
-          ],
-        ),
+          ),
+          ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive,
+            shouldLoop: false,
+            colors: [
+              Theme.of(context).colorScheme.primary,
+              Theme.of(context).colorScheme.secondary,
+              Colors.green,
+              Colors.blue,
+              Colors.pink,
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -133,10 +146,13 @@ class ExerciseEntryCard extends ConsumerWidget {
     final isCardio = entry.exerciseType == ExerciseType.cardio;
     final lastPerfAsync = ref.watch(lastPerformanceProvider(entry.exerciseId ?? -1));
 
+    // Logic for "Add Set" button disabling
+    final bool canAddSet = entry.sets.isEmpty || entry.sets.last.isCompleted;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -146,59 +162,40 @@ class ExerciseEntryCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     entry.exerciseName ?? 'Упражнение',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.grey),
-                  onPressed: () {
-                     ref.read(activeSessionProvider.notifier).removeExercise(entryIndex);
-                  },
+                  icon: const Icon(LucideIcons.trash2, size: 20, color: Colors.grey),
+                  onPressed: () => ref.read(activeSessionProvider.notifier).removeExercise(entryIndex),
                 )
               ],
             ),
-            
             lastPerfAsync.when(
                data: (hint) => hint != null 
-                  ? Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Text('Прошлый раз: $hint', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    )
+                  ? Text('Прошлый раз: $hint', style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12))
                   : const SizedBox.shrink(),
                loading: () => const SizedBox.shrink(),
                error: (_,__) => const SizedBox.shrink()
             ),
-
+            const SizedBox(height: 16),
+            ...entry.sets.asMap().entries.map((e) => ExerciseSetRow(
+              entryIndex: entryIndex, 
+              setIndex: e.key, 
+              set: e.value, 
+              isCardio: isCardio,
+            )),
             const SizedBox(height: 8),
-             Row(
-              children: [
-                Expanded(child: Text(isCardio ? 'Дистанция (км)' : 'Вес (кг)', style: Theme.of(context).textTheme.bodySmall)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(isCardio ? 'Время (мин)' : 'Повт.', style: Theme.of(context).textTheme.bodySmall)),
-                const SizedBox(width: 48), 
-              ],
-            ),
-            const SizedBox(height: 8),
-            ...entry.sets.asMap().entries.map((e) {
-              final setIndex = e.key;
-              final set = e.value;
-              return ExerciseSetRow(
-                entryIndex: entryIndex, 
-                setIndex: setIndex, 
-                set: set, 
-                isCardio: isCardio,
-                onComplete: () {
-                   // Optional: Start timer
-                }
-              );
-            }),
-            TextButton(
-              onPressed: () {
+            TextButton.icon(
+              onPressed: canAddSet ? () {
+                HapticFeedback.lightImpact();
                 ref.read(activeSessionProvider.notifier).addSet(entryIndex);
-              },
-              child: const Text('+ Добавить подход'),
+              } : null,
+              icon: const Icon(LucideIcons.plus, size: 18),
+              label: const Text('Добавить подход'),
             ),
           ],
         ),
@@ -212,7 +209,6 @@ class ExerciseSetRow extends ConsumerStatefulWidget {
   final int setIndex;
   final WorkoutSet set;
   final bool isCardio;
-  final VoidCallback onComplete;
 
   const ExerciseSetRow({
     super.key, 
@@ -220,7 +216,6 @@ class ExerciseSetRow extends ConsumerStatefulWidget {
     required this.setIndex, 
     required this.set, 
     required this.isCardio,
-    required this.onComplete,
   });
 
   @override
@@ -230,76 +225,25 @@ class ExerciseSetRow extends ConsumerStatefulWidget {
 class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
   late TextEditingController _col1Controller;
   late TextEditingController _col2Controller;
-  final FocusNode _col1Focus = FocusNode();
-  final FocusNode _col2Focus = FocusNode();
+  final FocusNode _f1 = FocusNode();
+  final FocusNode _f2 = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    
-    String text1 = _valToStr(widget.isCardio ? widget.set.distance : widget.set.weight);
-    String text2 = _valToStr(widget.isCardio ? widget.set.duration : widget.set.reps);
-
-    _col1Controller = TextEditingController(text: text1);
-    _col2Controller = TextEditingController(text: text2);
-    
-    _col1Focus.addListener(() {
-      if (_col1Focus.hasFocus) {
-        final text = _col1Controller.text;
-        if (text == '' || text == '0' || text == '0.0') {
-           _col1Controller.clear();
-        }
-      }
-    });
-    
-    _col2Focus.addListener(() {
-      if (_col2Focus.hasFocus) {
-         final text = _col2Controller.text;
-         if (text == '' || text == '0') {
-            _col2Controller.clear();
-         }
-      }
-    });
-  }
-  
-  String _valToStr(num val) {
-     return val == 0 ? '' : val.toString();
-  }
-  
-  @override
-  void didUpdateWidget(covariant ExerciseSetRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.set != oldWidget.set) {
-      if (!_col1Focus.hasFocus) {
-          _col1Controller.text = _valToStr(widget.isCardio ? widget.set.distance : widget.set.weight);
-      }
-      if (!_col2Focus.hasFocus) {
-         _col2Controller.text = _valToStr(widget.isCardio ? widget.set.duration : widget.set.reps);
-      }
-    }
+    _col1Controller = TextEditingController(text: _format(widget.isCardio ? widget.set.distance : widget.set.weight));
+    _col2Controller = TextEditingController(text: _format(widget.isCardio ? widget.set.duration : widget.set.reps));
   }
 
-  @override
-  void dispose() {
-    _col1Controller.dispose();
-    _col2Controller.dispose();
-    _col1Focus.dispose();
-    _col2Focus.dispose();
-    super.dispose();
-  }
+  String _format(num val) => val == 0 ? '' : (val % 1 == 0 ? val.toInt().toString() : val.toString());
 
   void _save() {
-     final val1 = double.tryParse(_col1Controller.text) ?? 0;
-     final val2 = int.tryParse(_col2Controller.text) ?? 0;
-     
+     final v1 = double.tryParse(_col1Controller.text) ?? 0;
+     final v2 = int.tryParse(_col2Controller.text) ?? 0;
      if (widget.isCardio) {
-       ref.read(activeSessionProvider.notifier).updateSet(
-         widget.entryIndex, widget.setIndex, distance: val1, duration: val2
-       );
+       ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, distance: v1, duration: v2);
      } else {
-       ref.read(activeSessionProvider.notifier).updateSet(
-         widget.entryIndex, widget.setIndex, weight: val1, reps: val2
-       );
+       ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, weight: v1, reps: v2);
      }
   }
 
@@ -309,87 +253,54 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            child: Text('${widget.setIndex + 1}', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onPrimaryContainer)),
+          ),
+          const SizedBox(width: 12),
           Expanded(
-            child: Focus(
-              onFocusChange: (focused) {
-                if (!focused) _save();
-              },
-              child: TextFormField(
-                controller: _col1Controller,
-                focusNode: _col1Focus,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  isDense: true, 
-                  contentPadding: const EdgeInsets.all(8),
-                  hintText: '0', 
-                  hintStyle: TextStyle(color: Colors.grey[600])
-                ),
-                validator: (val) {
-                   if (val == null || val.isEmpty || val == '0') return '!';
-                   return null;
-                },
-                onFieldSubmitted: (_) => _save(),
+            child: TextField(
+              controller: _col1Controller,
+              focusNode: _f1,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                hintText: widget.isCardio ? 'км' : 'кг',
+                hintStyle: const TextStyle(fontSize: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
+              onChanged: (_) => _save(),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Focus(
-              onFocusChange: (focused) {
-                 if (!focused) _save();
-              },
-              child: TextFormField(
-                controller: _col2Controller,
-                focusNode: _col2Focus,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  isDense: true, 
-                  contentPadding: const EdgeInsets.all(8),
-                  hintText: '0',
-                  hintStyle: TextStyle(color: Colors.grey[600])
-                ),
-                validator: (val) {
-                   if (val == null || val.isEmpty || val == '0') return '!';
-                   return null;
-                },
-                onFieldSubmitted: (_) => _save(),
+            child: TextField(
+              controller: _col2Controller,
+              focusNode: _f2,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: widget.isCardio ? 'мин' : 'повт',
+                hintStyle: const TextStyle(fontSize: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               ),
+              onChanged: (_) => _save(),
             ),
           ),
+          const SizedBox(width: 8),
           IconButton(
             icon: Icon(
-              widget.set.isCompleted ? Icons.check_circle : Icons.circle_outlined,
-              color: widget.set.isCompleted ? Colors.green : Colors.grey,
+              widget.set.isCompleted ? LucideIcons.checkCircle2 : LucideIcons.circle,
+              color: widget.set.isCompleted ? Theme.of(context).colorScheme.primary : Colors.grey,
             ),
             onPressed: () {
-              bool newVal = !widget.set.isCompleted;
-              if (newVal) {
-                 final val1 = double.tryParse(_col1Controller.text) ?? 0;
-                 final val2 = int.tryParse(_col2Controller.text) ?? 0;
-                 if (val1 <= 0 && val2 <= 0) {
-                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Введите данные!')));
-                     return;
-                 }
-                 _save();
-              }
-              
-              ref.read(activeSessionProvider.notifier).updateSet(
-                   widget.entryIndex, widget.setIndex, isCompleted: newVal
-              );
-              if (newVal) {
-                 HapticFeedback.mediumImpact();
-                 widget.onComplete();
-              } else {
-                 HapticFeedback.lightImpact();
-              }
+               HapticFeedback.mediumImpact();
+               _save();
+               ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: !widget.set.isCompleted);
             },
           ),
           IconButton(
-             icon: const Icon(Icons.close, size: 16),
-             onPressed: () {
-                HapticFeedback.selectionClick();
-                ref.read(activeSessionProvider.notifier).removeSet(widget.entryIndex, widget.setIndex);
-             },
+             icon: const Icon(LucideIcons.x, size: 16, color: Colors.grey),
+             onPressed: () => ref.read(activeSessionProvider.notifier).removeSet(widget.entryIndex, widget.setIndex),
           )
         ],
       ),
