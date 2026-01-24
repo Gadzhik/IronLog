@@ -51,25 +51,51 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   }
 
   bool _isSessionValid(WorkoutSession? session) {
-    if (session == null || session.entries.isEmpty) return false;
+    if (session == null || session.entries.isEmpty) {
+      debugPrint('Validation Failed: Session is null or entries are empty');
+      return false;
+    }
     
-    for (var entry in session.entries) {
-      if (entry.sets.isEmpty) return false;
-      for (var set in entry.sets) {
-        if (!set.isCompleted) return false;
-        switch (entry.exerciseType) {
-          case ExerciseType.strength:
-            if (set.weight <= 0 || set.reps <= 0) return false;
-            break;
-          case ExerciseType.bodyweight:
-            if (set.reps <= 0) return false;
-            break;
-          case ExerciseType.cardio:
-            if (set.duration <= 0 || set.distance <= 0) return false;
-            break;
-          case ExerciseType.static:
-            if (set.duration <= 0) return false;
-            break;
+    for (var i = 0; i < session.entries.length; i++) {
+      final entry = session.entries[i];
+      if (entry.sets.isEmpty) {
+        debugPrint('Validation Failed: Entry ${entry.exerciseName} has no sets');
+        return false;
+      }
+      for (var j = 0; j < entry.sets.length; j++) {
+        final set = entry.sets[j];
+        if (!set.isCompleted) {
+          debugPrint('Validation Failed: Set ${j + 1} for ${entry.exerciseName} is not checked');
+          return false;
+        }
+
+        bool isValid = false;
+        // STICK TO THE NAME-BASED LOGIC USED IN UI
+        if (entry.exerciseName == 'Планка') {
+           isValid = set.duration > 0;
+        } else if (entry.exerciseCategory == 'Пресс' || 
+                  ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(entry.exerciseName)) {
+           isValid = set.reps > 0;
+        } else {
+          switch (entry.exerciseType) {
+            case ExerciseType.strength:
+              isValid = set.weight > 0 && set.reps > 0;
+              break;
+            case ExerciseType.bodyweight:
+              isValid = set.reps > 0;
+              break;
+            case ExerciseType.cardio:
+              isValid = set.duration > 0 && set.distance > 0;
+              break;
+            case ExerciseType.static:
+              isValid = set.duration > 0;
+              break;
+          }
+        }
+
+        if (!isValid) {
+          debugPrint('Validation Failed: ${entry.exerciseName} Set ${j + 1} incomplete metrics: w=${set.weight}, r=${set.reps}, dur=${set.duration}, dist=${set.distance}');
+          return false;
         }
       }
     }
@@ -102,7 +128,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               }
               
               HapticFeedback.heavyImpact();
-              _confettiController.play();
               
               if (_nameController.text.trim().isNotEmpty) {
                  ref.read(activeSessionProvider.notifier).updateName(_nameController.text);
@@ -111,11 +136,25 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                  ref.read(activeSessionProvider.notifier).updateName('Тренировка от ${DateFormat('dd.MM.yy').format(now)}');
               }
               
-              await ref.read(activeSessionProvider.notifier).finishSession();
-              
-              Future.delayed(const Duration(milliseconds: 2000), () {
-                if (mounted) Navigator.pop(context);
-              });
+              try {
+                await ref.read(activeSessionProvider.notifier).finishSession();
+                
+                // Success feedback
+                _confettiController.play();
+                
+                // Force refresh history after save
+                ref.invalidate(historyProvider);
+                
+                Future.delayed(const Duration(milliseconds: 2000), () {
+                  if (mounted) Navigator.pop(context);
+                });
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Ошибка сохранения: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
             },
             tooltip: 'Завершить',
           )
@@ -341,8 +380,8 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
   }
 
   void _save() {
-     final v1 = double.tryParse(_col1Controller.text) ?? 0;
-     final v2 = int.tryParse(_col2Controller.text) ?? 0;
+     final v1 = double.tryParse(_col1Controller.text.trim()) ?? 0;
+     final v2 = int.tryParse(_col2Controller.text.trim()) ?? 0;
      
      // NAME-BASED SAVE LOGIC
      if (widget.exerciseName == 'Планка') {
@@ -378,23 +417,23 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
     
     // VALIDATION LOGIC (STRICT)
     if (widget.exerciseName == 'Планка') {
-       hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0;
+       hasValue = (double.tryParse(_col1Controller.text.trim()) ?? 0) > 0;
     } else if (widget.exerciseCategory == 'Пресс' || 
                ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
-       hasValue = (int.tryParse(_col1Controller.text) ?? 0) > 0;
+       hasValue = (int.tryParse(_col1Controller.text.trim()) ?? 0) > 0;
     } else {
       switch (widget.type) {
         case ExerciseType.strength:
-          hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 && (int.tryParse(_col2Controller.text) ?? 0) > 0;
+          hasValue = (double.tryParse(_col1Controller.text.trim()) ?? 0) > 0 && (int.tryParse(_col2Controller.text.trim()) ?? 0) > 0;
           break;
         case ExerciseType.bodyweight:
-          hasValue = (int.tryParse(_col1Controller.text) ?? 0) > 0;
+          hasValue = (int.tryParse(_col1Controller.text.trim()) ?? 0) > 0;
           break;
         case ExerciseType.cardio:
-          hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0 && (int.tryParse(_col2Controller.text) ?? 0) > 0;
+          hasValue = (double.tryParse(_col1Controller.text.trim()) ?? 0) > 0 && (int.tryParse(_col2Controller.text.trim()) ?? 0) > 0;
           break;
         case ExerciseType.static:
-          hasValue = (double.tryParse(_col1Controller.text) ?? 0) > 0;
+          hasValue = (double.tryParse(_col1Controller.text.trim()) ?? 0) > 0;
           break;
       }
     }

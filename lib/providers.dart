@@ -147,12 +147,24 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
 
   WorkoutSession _clone(WorkoutSession s) {
     return WorkoutSession()
-      ..id = s.id
+      ..id = s.id // IMPORTANT: Keep the ID to ensure Isar updates the record
       ..startTime = s.startTime
       ..endTime = s.endTime
       ..name = s.name
       ..note = s.note
-      ..entries = List<WorkoutEntry>.from(s.entries);
+      ..entries = s.entries.map((e) => WorkoutEntry()
+        ..exerciseId = e.exerciseId
+        ..exerciseName = e.exerciseName
+        ..exerciseCategory = e.exerciseCategory
+        ..exerciseType = e.exerciseType
+        ..sets = e.sets.map((set) => WorkoutSet()
+          ..weight = set.weight
+          ..reps = set.reps
+          ..distance = set.distance
+          ..duration = set.duration
+          ..isCompleted = set.isCompleted
+          ..timestamp = set.timestamp).toList()
+      ).toList();
   }
 }
 
