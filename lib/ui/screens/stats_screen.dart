@@ -4,11 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/providers.dart';
 import 'package:intl/intl.dart';
+// ignore: depend_on_referenced_packages
+import 'package:collection/collection.dart'; 
 
-// Feature: Advanced filtering inputs
 class StatsFilter {
   final int exerciseId;
-  final Duration? range; // null = all time
+  final Duration? range; 
   
   const StatsFilter(this.exerciseId, this.range);
   
@@ -21,8 +22,6 @@ class StatsFilter {
   int get hashCode => Object.hash(exerciseId, range);
 }
 
-// Bug Fix: Loading Loop 
-// Ensure filter class overrides ==/hashCode so family provider doesn't recompute on same values
 final maxWeightHistoryProvider = FutureProvider.family<List<Map<String, dynamic>>, StatsFilter>((ref, filter) async {
   final service = ref.read(isarServiceProvider);
   DateTime? after;
@@ -42,13 +41,23 @@ class StatsScreen extends ConsumerStatefulWidget {
 class _StatsScreenState extends ConsumerState<StatsScreen> {
   Exercise? _selectedExercise;
   
-  // Feature: Compact Filter options
+  // Feature: Compact Filter options - Added 'Месяц' as requested in prompt.
   final Map<String, Duration?> _ranges = {
     '1 день': const Duration(days: 1),
     '3 дня': const Duration(days: 3),
     'Неделя': const Duration(days: 7),
+    'Месяц': const Duration(days: 30),
   };
-  String? _selectedRangeKey; // Null means "All" / Reset
+  String? _selectedRangeKey; 
+
+  void _showExercisePicker(List<Exercise> exercises) {
+    showModalBottomSheet(context: context, isScrollControlled: true, builder: (context) {
+       return _ExercisePicker(exercises: exercises, onSelect: (e) {
+         setState(() => _selectedExercise = e);
+         Navigator.pop(context);
+       });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,24 +72,28 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             exercisesAsync.when(
               data: (exercises) {
                 if (exercises.isEmpty) return const Text('Нет упражнений');
-                return DropdownButtonFormField<Exercise>(
-                  value: _selectedExercise,
-                  hint: const Text('Выберите упражнение'),
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Упражнение',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                return InkWell(
+                  onTap: () => _showExercisePicker(exercises),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _selectedExercise?.name ?? 'Выберите упражнение', 
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: _selectedExercise == null ? Colors.grey : null
+                          )
+                        ),
+                        const Icon(Icons.arrow_drop_down),
+                      ],
+                    ),
                   ),
-                  items: exercises.map((e) => DropdownMenuItem(
-                    value: e,
-                    child: Text(e.name, overflow: TextOverflow.ellipsis),
-                  )).toList(),
-                  onChanged: (val) {
-                    setState(() {
-                      _selectedExercise = val;
-                    });
-                  },
                 );
               },
               loading: () => const LinearProgressIndicator(),
@@ -113,11 +126,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     ),
                   ),
                 ),
-                // Reset Button
+                // Feature: Global Reset
                 IconButton(
                   onPressed: () {
                      setState(() {
                        _selectedRangeKey = null;
+                       _selectedExercise = null;
                      });
                   },
                   icon: const Icon(Icons.refresh),
@@ -151,6 +165,70 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 }
 
+class _ExercisePicker extends StatefulWidget {
+  final List<Exercise> exercises;
+  final ValueChanged<Exercise> onSelect;
+  const _ExercisePicker({required this.exercises, required this.onSelect});
+
+  @override
+  State<_ExercisePicker> createState() => _ExercisePickerState();
+}
+
+class _ExercisePickerState extends State<_ExercisePicker> {
+  String _query = '';
+  
+  @override
+  Widget build(BuildContext context) {
+      final filtered = widget.exercises.where((e) => 
+         e.name.toLowerCase().contains(_query.toLowerCase()) || 
+         e.category.toLowerCase().contains(_query.toLowerCase())
+      ).toList();
+      
+      final grouped = groupBy(filtered, (e) => e.category);
+      final keys = grouped.keys.toList()..sort();
+
+      return DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) {
+           return Container(
+             color: Theme.of(context).scaffoldBackgroundColor,
+             child: Column(
+               children: [
+                 Padding(
+                   padding: const EdgeInsets.all(16.0),
+                   child: TextField(
+                     decoration: const InputDecoration(
+                       hintText: 'Поиск...',
+                       prefixIcon: Icon(Icons.search),
+                     ),
+                     onChanged: (val) => setState(() => _query = val),
+                   ),
+                 ),
+                 Expanded(
+                   child: ListView(
+                     controller: controller,
+                     children: keys.map((cat) {
+                       return ExpansionTile(
+                         title: Text(cat, style: const TextStyle(fontWeight: FontWeight.bold)),
+                         initiallyExpanded: true, 
+                         children: grouped[cat]!.map((e) => ListTile(
+                           title: Text(e.name),
+                           onTap: () => widget.onSelect(e),
+                         )).toList(),
+                       );
+                     }).toList(),
+                   ),
+                 )
+               ],
+             ),
+           );
+        }
+      );
+  }
+}
+
 class _ChartWidget extends ConsumerWidget {
   final int exerciseId;
   final Duration? range;
@@ -168,8 +246,6 @@ class _ChartWidget extends ConsumerWidget {
         
         data.sort((a, b) => (a['date'] as DateTime).compareTo(b['date']));
         
-        // Feature: Trend Line visual logic
-        // We use spots as usual. The line itself demonstrates the trend.
         final spots = data.asMap().entries.map((e) {
           return FlSpot(e.key.toDouble(), (e.value['weight'] as num).toDouble());
         }).toList();
@@ -177,7 +253,6 @@ class _ChartWidget extends ConsumerWidget {
         double minY = spots.map((e) => e.y).reduce((a, b) => a < b ? a : b);
         double maxY = spots.map((e) => e.y).reduce((a, b) => a > b ? a : b);
         
-        // Add more buffer for Y axis
         double buffer = (maxY - minY) * 0.2;
         if (buffer == 0) buffer = 5;
         
@@ -205,7 +280,6 @@ class _ChartWidget extends ConsumerWidget {
                     getTitlesWidget: (val, meta) {
                       final index = val.toInt();
                       if (index >= 0 && index < data.length) {
-                         // Feature: Clarity - show fewer labels but larger
                          int step = (data.length / 4).ceil();
                          if (index % step != 0 && index != data.length - 1) return const SizedBox.shrink();
 
@@ -243,7 +317,7 @@ class _ChartWidget extends ConsumerWidget {
               lineBarsData: [
                 LineChartBarData(
                   spots: spots,
-                  isCurved: false, // Feature: Clear trend logic usually prefers straight lines or very slight curve
+                  isCurved: false,
                   color: Theme.of(context).colorScheme.primary,
                   barWidth: 3,
                   isStrokeCapRound: true,

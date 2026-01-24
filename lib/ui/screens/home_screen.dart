@@ -6,11 +6,6 @@ import 'package:iron_log/providers.dart';
 import 'package:iron_log/ui/screens/active_session_screen.dart';
 import 'package:iron_log/ui/screens/stats_screen.dart';
 import 'package:iron_log/ui/screens/workout_detail_screen.dart';
-// ignore: depend_on_referenced_packages
-// import 'package:share_plus/share_plus.dart'; 
-// Note: Share Plus not in deps, need to add or mock. 
-// User asked to "export to a JSON file". Usually done via sharing the file or text.
-// Or just showing a dialog with content. For now I'll use simple Dialog or Clipboard if no package.
 import 'package:flutter/services.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -71,7 +66,6 @@ class HistoryTab extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Мои тренировки'),
-        // Feature: Clear All and Export
         actions: [
           PopupMenuButton<String>(
             onSelected: (val) async {
@@ -133,22 +127,40 @@ class HistoryTab extends ConsumerWidget {
             itemCount: sessions.length,
             itemBuilder: (context, index) {
               final session = sessions[index];
-              // Feature: Swipe to delete
+              // Feature: Swipe-to-Right for details
               return Dismissible(
                 key: ValueKey(session.id),
-                direction: DismissDirection.endToStart,
+                // Allow swipe both ways logic? 
+                // Right (startToEnd): Details
+                // Left (endToStart): Delete
                 background: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 20),
+                  color: Colors.blue,
+                  child: const Icon(Icons.visibility, color: Colors.white),
+                ),
+                secondaryBackground: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 20),
                   color: Colors.red,
                   child: const Icon(Icons.delete, color: Colors.white),
                 ),
-                onDismissed: (_) {
-                  ref.read(isarServiceProvider).deleteWorkout(session.id);
+                confirmDismiss: (direction) async {
+                  if (direction == DismissDirection.startToEnd) {
+                     // Navigate to details
+                     Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
+                     return false; // Don't dismiss
+                  } else {
+                     return true; // Proceed to onDismissed for delete
+                  }
+                },
+                onDismissed: (direction) {
+                  if (direction == DismissDirection.endToStart) {
+                    ref.read(isarServiceProvider).deleteWorkout(session.id);
+                  }
                 },
                 child: GestureDetector(
                   onTap: () {
-                    // Feature: Read-only Detail View
                     Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
                   },
                   child: WorkoutHistoryCard(session: session),
@@ -189,7 +201,6 @@ class WorkoutHistoryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                       // Feature: Show Name if present
                        if (session.name != null && session.name!.isNotEmpty)
                          Text(
                             session.name!, 

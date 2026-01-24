@@ -157,7 +157,7 @@ class ExerciseEntryCard extends ConsumerWidget {
               children: [
                 Expanded(child: Text(isCardio ? 'Дистанция (км)' : 'Вес (кг)', style: Theme.of(context).textTheme.bodySmall)),
                 const SizedBox(width: 8),
-                Expanded(child: Text(isCardio ? 'Время (сек)' : 'Повт.', style: Theme.of(context).textTheme.bodySmall)),
+                Expanded(child: Text(isCardio ? 'Время (мин)' : 'Повт.', style: Theme.of(context).textTheme.bodySmall)),
                 const SizedBox(width: 48), 
               ],
             ),
