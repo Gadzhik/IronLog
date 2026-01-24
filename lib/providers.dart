@@ -8,12 +8,11 @@ final isarServiceProvider = Provider<IsarService>((ref) {
   return IsarService();
 });
 
-final exercisesProvider = FutureProvider<List<Exercise>>((ref) async {
+// Fix: Progress Screen should show ALL exercises
+final allExercisesProvider = FutureProvider<List<Exercise>>((ref) async {
   final service = ref.read(isarServiceProvider);
   return await service.getAllExercises();
 });
-
-final allExercisesProvider = exercisesProvider;
 
 final searchExerciseProvider = FutureProvider.family<List<Exercise>, String>((ref, query) async {
   final service = ref.read(isarServiceProvider);
@@ -21,16 +20,30 @@ final searchExerciseProvider = FutureProvider.family<List<Exercise>, String>((re
   return service.searchExercises(query);
 });
 
-// Bug Fix: Use StreamProvider for reactive updates
 final historyProvider = StreamProvider<List<WorkoutSession>>((ref) {
   final service = ref.read(isarServiceProvider);
   return service.watchWorkoutHistory();
 });
 
-// Feature: Smart hint
 final lastPerformanceProvider = FutureProvider.family<String?, int>((ref, exerciseId) async {
    final service = ref.read(isarServiceProvider);
-   return service.getLastPerformance(exerciseId);
+   final sessions = await service.getWorkoutHistory();
+       
+    for(var s in sessions) {
+       for(var e in s.entries) {
+          if (e.exerciseId == exerciseId && e.sets.any((s) => s.isCompleted)) {
+             final completedSets = e.sets.where((s) => s.isCompleted).toList();
+             if (completedSets.isEmpty) continue;
+             
+             final lastSet = completedSets.last;
+             if (e.exerciseType == ExerciseType.cardio) {
+               return '${lastSet.distance}КМ / ${lastSet.duration}МИН';
+             }
+             return '${lastSet.weight}КГ x ${lastSet.reps}';
+          }
+       }
+    }
+    return null;
 });
 
 class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
@@ -40,9 +53,7 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
 
   void startSession() {
     final now = DateTime.now();
-    // Feature: Default Naming
-    String defaultName = 'Тренировка от ${DateFormat('dd.MM').format(now)}';
-    
+    String defaultName = 'ТРЕНИРОВКА ${DateFormat('dd.MM').format(now)}';
     state = WorkoutSession()..startTime = now..name = defaultName;
     _save();
   }
@@ -64,8 +75,6 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
       ..exerciseType = exercise.type
       ..sets = [WorkoutSet()..timestamp = DateTime.now()]; 
 
-    // We must clone the entries list to ensure Riverpod detects change
-    // Make sure we are creating a deep copy of entries list structure
     final newEntries = List<WorkoutEntry>.from(state!.entries);
     newEntries.add(entry);
     
@@ -78,21 +87,8 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
     if (state == null) return;
     if (entryIndex >= state!.entries.length) return;
     
-    final entries = state!.entries;
-    final entry = entries[entryIndex];
-    
-    // Logic Change: New set inputs must be empty/zero
-    double prevWeight = 0;
-    int prevReps = 0;
-    double prevDist = 0;
-    int prevDur = 0;
-
-    final newSet = WorkoutSet()
-       ..weight = prevWeight
-       ..reps = prevReps
-       ..distance = prevDist
-       ..duration = prevDur
-       ..timestamp = DateTime.now();
+    final entry = state!.entries[entryIndex];
+    final newSet = WorkoutSet()..timestamp = DateTime.now();
 
     final newSets = List<WorkoutSet>.from(entry.sets);
     newSets.add(newSet);
@@ -102,7 +98,6 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
     _save();
   }
 
-  // Feature: Support cardio fields
   void updateSet(int entryIndex, int setIndex, {double? weight, int? reps, double? distance, int? duration, bool? isCompleted}) {
     if (state == null) return;
     final set = state!.entries[entryIndex].sets[setIndex];
@@ -113,7 +108,6 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
     if (duration != null) set.duration = duration;
     if (isCompleted != null) set.isCompleted = isCompleted;
     
-    // Explicitly re-assign to trigger dirty check if needed (Isar embedded objects are mutable but state notifier needs ref change)
     state = _clone(state!);
     _save();
   }
@@ -129,7 +123,6 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
      _save();
   }
   
-  // Feature: Removal of exercise
   void removeExercise(int entryIndex) {
      if (state == null) return;
      final newEntries = List<WorkoutEntry>.from(state!.entries);
@@ -159,20 +152,11 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
       ..endTime = s.endTime
       ..name = s.name
       ..note = s.note
-      ..entries = s.entries; // Shallow copy of list is fine if we replaced the list itself top-level
+      ..entries = s.entries;
   }
 }
 
 final activeSessionProvider = StateNotifierProvider<ActiveSessionNotifier, WorkoutSession?>((ref) {
   final service = ref.read(isarServiceProvider);
   return ActiveSessionNotifier(service);
-});
-
-final exercisesForRangeProvider = FutureProvider.family<List<Exercise>, Duration?>((ref, duration) async {
-  final service = ref.read(isarServiceProvider);
-  if (duration == null) return service.getAllExercises();
-  final start = DateTime.now().subtract(duration);
-  // Ensure we use the Start of that Day for the query
-  final startOfDay = DateTime(start.year, start.month, start.day);
-  return service.getExercisesForRange(startOfDay);
 });

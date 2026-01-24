@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/providers.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 // ignore: depend_on_referenced_packages
 import 'package:collection/collection.dart'; 
 
@@ -34,19 +35,17 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Выбор упражнения'),
+        title: Text('ВЫБОР УПРАЖНЕНИЯ', style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 1)),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(20.0),
             child: TextField(
               controller: _searchController,
               decoration: const InputDecoration(
-                hintText: 'Поиск...',
+                hintText: 'ПОИСК...',
                 prefixIcon: Icon(LucideIcons.search, size: 20),
-                filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
               ),
             ),
           ),
@@ -54,7 +53,7 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
             child: exercisesAsync.when(
               data: (exercises) {
                 if (exercises.isEmpty) {
-                  return const Center(child: Text('Ничего не найдено', style: TextStyle(color: Colors.grey)));
+                  return const Center(child: Text('НИЧЕГО НЕ НАЙДЕНО', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)));
                 }
 
                 final grouped = groupBy(exercises, (e) => e.category);
@@ -64,27 +63,36 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
                   padding: const EdgeInsets.only(bottom: 40),
                   children: sortedKeys.map((category) {
                     final categoryExercises = grouped[category]!;
-                    return ExpansionTile(
-                      leading: Icon(_getCategoryIcon(category), size: 18, color: Theme.of(context).colorScheme.primary),
-                      title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      initiallyExpanded: _query.isNotEmpty,
-                      children: categoryExercises.map((exercise) {
-                         return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                            title: Text(exercise.name),
-                            trailing: const Icon(LucideIcons.plus, size: 16, color: Colors.grey),
-                            onTap: () {
-                               ref.read(activeSessionProvider.notifier).addExercise(exercise);
-                               Navigator.pop(context);
-                            },
-                         );
-                      }).toList(),
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ExpansionTile(
+                        leading: Icon(_getCategoryIcon(category), size: 18, color: Theme.of(context).colorScheme.primary),
+                        title: Text(category.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+                        initiallyExpanded: _query.isNotEmpty,
+                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+                        collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+                        children: categoryExercises.map((exercise) {
+                           return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                              title: Text(exercise.name.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              trailing: const Icon(LucideIcons.plus, size: 16, color: Colors.grey),
+                              onTap: () {
+                                 ref.read(activeSessionProvider.notifier).addExercise(exercise);
+                                 Navigator.pop(context);
+                              },
+                           );
+                        }).toList(),
+                      ),
                     );
                   }).toList(),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Ошибка: $err')),
+              error: (err, stack) => Center(child: Text('ОШИБКА: $err')),
             ),
           ),
         ],
@@ -98,8 +106,8 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
       case 'спина': return LucideIcons.layers;
       case 'ноги': return LucideIcons.footprints;
       case 'кардио': return LucideIcons.heartPulse;
-      case 'руки': return LucideIcons.armchair; // Placeholder
       case 'плечи': return LucideIcons.moveUp;
+      case 'руки': return LucideIcons.dumbbell;
       default: return LucideIcons.dumbbell;
     }
   }

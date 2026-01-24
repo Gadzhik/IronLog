@@ -14,18 +14,25 @@ class IsarService {
   }
 
   Future<Isar> openDB() async {
-    if (Isar.instanceNames.isEmpty) {
-      final dir = await getApplicationDocumentsDirectory();
-      final isar = await Isar.open(
-        [ExerciseSchema, WorkoutSessionSchema],
-        directory: dir.path,
-        inspector: true,
-      );
-      
-      await _seedExercises(isar);
-      return isar;
+    try {
+      if (Isar.instanceNames.isEmpty) {
+        final dir = await getApplicationDocumentsDirectory();
+        final isar = await Isar.open(
+          [ExerciseSchema, WorkoutSessionSchema],
+          directory: dir.path,
+          inspector: true,
+        );
+        
+        await _seedExercises(isar);
+        return isar;
+      }
+      return Isar.getInstance()!;
+    } catch (e) {
+      // Emergency: If opening fails (schema mismatch), we might need to delete and retry
+      // But for now, just rethrow so UI can handle it.
+      print("Isar Initialization Error: $e");
+      rethrow;
     }
-    return Future.value(Isar.getInstance());
   }
 
   Future<void> _seedExercises(Isar isar) async {
@@ -72,14 +79,12 @@ class IsarService {
   // CRUD Helpers
   Future<List<Exercise>> getAllExercises() async {
     final isar = await db;
-    // Fix: Using a typed query chain and ensuring it is finalized.
-    final QueryBuilder<Exercise, Exercise, QAfterSortBy> query = isar.exercises.where().sortByName();
-    return query.findAll();
+    return await isar.exercises.where().sortByName().build().findAll();
   }
   
   Future<List<Exercise>> searchExercises(String queryStr) async {
     final isar = await db;
-    return isar.exercises
+    return await isar.exercises
         .filter()
         .nameContains(queryStr, caseSensitive: false)
         .or()
@@ -95,7 +100,6 @@ class IsarService {
     });
   }
 
-  // Bug Fix: Stream for reactive updates
   Stream<List<WorkoutSession>> watchWorkoutHistory() async* {
     final isar = await db;
     yield* isar.workoutSessions.where().sortByStartTimeDesc().watch(fireImmediately: true);
@@ -103,10 +107,9 @@ class IsarService {
 
   Future<List<WorkoutSession>> getWorkoutHistory() async {
     final isar = await db;
-    return isar.workoutSessions.where().sortByStartTimeDesc().findAll();
+    return await isar.workoutSessions.where().sortByStartTimeDesc().build().findAll();
   }
   
-  // Feature: Delete
   Future<void> deleteWorkout(int id) async {
      final isar = await db;
      await isar.writeTxn(() async {
@@ -114,7 +117,6 @@ class IsarService {
      });
   }
   
-  // Feature: Clear All
   Future<void> clearAllData() async {
       final isar = await db;
       await isar.writeTxn(() async {
@@ -122,122 +124,44 @@ class IsarService {
       });
   }
   
-  // Smart: Export
-  Future<String> exportData() async {
+  // Stats: Integrated logic for Strength (Weight) and Cardio (Duration/Distance)
+  Future<List<Map<String, dynamic>>> getExerciseHistory(int exerciseId, ExerciseType type) async {
     final isar = await db;
-    final sessions = await isar.workoutSessions.where().sortByStartTimeDesc().findAll();
-    final data = sessions.map((s) => {
-      'startTime': s.startTime.toIso8601String(),
-      'endTime': s.endTime?.toIso8601String(),
-      'name': s.name,
-      'entries': s.entries.map((e) => {
-        'exercise': e.exerciseName,
-        'category': e.exerciseCategory,
-        'sets': e.sets.map((set) => {
-           'weight': set.weight,
-           'reps': set.reps,
-           'distance': set.distance,
-           'time': set.duration
-        }).toList(),
-      }).toList()
-    }).toList();
+    // Fix: Ensure we fetch ALL sessions for full history
+    final sessions = await isar.workoutSessions.where().sortByStartTime().build().findAll();
     
-    return jsonEncode(data);
-  }
-
-  // Smart: Last Session Hint
-  Future<String?> getLastPerformance(int exerciseId) async {
-    final isar = await db;
-    // Find sessions containing this exercise, sorted by date desc
-    final sessions = await isar.workoutSessions.filter()
-       .entriesElement((q) => q.exerciseIdEqualTo(exerciseId))
-       .sortByStartTimeDesc()
-       .findAll();
-       
-    if (sessions.isNotEmpty) {
-      // Find the specific entry
-      for(var s in sessions) {
-         for(var e in s.entries) {
-            if (e.exerciseId == exerciseId && e.sets.isNotEmpty) {
-               // Return last set or max set? Usually last set of last session is good reference.
-               final lastSet = e.sets.last;
-               if (e.exerciseType == ExerciseType.cardio) {
-                 return '${lastSet.distance}км / ${lastSet.duration}с';
-               }
-               return '${lastSet.weight}кг x ${lastSet.reps}';
-            }
-         }
-      }
-    }
-    return null;
-  }
-  
-  // Stats
-  Future<List<Map<String, dynamic>>> getMaxWeightHistory(int exerciseId, {DateTime? after}) async {
-    final isar = await db;
-    
-    // Fix: Explicitly typed query to avoid NoSuchMethodError
-    QueryBuilder<WorkoutSession, WorkoutSession, QAfterSortBy> query;
-    
-    if (after != null) {
-      final startOfDay = DateTime(after.year, after.month, after.day);
-      query = isar.workoutSessions
-        .filter()
-        .startTimeGreaterThan(startOfDay, include: true)
-        .sortByStartTime();
-    } else {
-      query = isar.workoutSessions.where().sortByStartTime();
-    }
-    
-    final sessions = await query.findAll();
     final List<Map<String, dynamic>> history = [];
     
     for (var session in sessions) {
       for (var entry in session.entries) {
-        // Fix: Use a safer comparison if exerciseId might be null
         if (entry.exerciseId == exerciseId) {
-          double maxW = 0;
-          bool hasCompletedSet = false;
-          
-          for (var set in entry.sets) {
-             if (set.isCompleted) {
-                hasCompletedSet = true;
-                if (set.weight > maxW) maxW = set.weight;
-             }
-          }
-          
-          if (hasCompletedSet) {
-            // Even if maxW is 0 (bodyweight), we should record the progress point
-            history.add({
-              'date': session.startTime, 
-              'weight': maxW,
-            });
+          bool hasCompletedSet = entry.sets.any((s) => s.isCompleted);
+          if (!hasCompletedSet) continue;
+
+          if (type == ExerciseType.strength) {
+            double maxW = 0;
+            for (var set in entry.sets) {
+              if (set.isCompleted && set.weight > maxW) maxW = set.weight;
+            }
+            history.add({'date': session.startTime, 'value': maxW});
+          } else {
+            // Cardio: Track Total Duration per session in MINUTES
+            int totalDurationSecs = 0;
+            for (var set in entry.sets) {
+              if (set.isCompleted) {
+                totalDurationSecs += set.duration;
+              }
+            }
+            if (totalDurationSecs > 0) {
+              history.add({
+                'date': session.startTime, 
+                'value': totalDurationSecs.toDouble() / 60.0, // Convert to minutes for Y-axis
+              });
+            }
           }
         }
       }
     }
     return history;
-  }
-  
-  // Feature: Independent Filter Logic - Get exercises with data in a range
-  Future<List<Exercise>> getExercisesForRange(DateTime rangeStart) async {
-     final isar = await db;
-     // Find all sessions in range
-     final sessions = await isar.workoutSessions
-       .filter()
-       .startTimeGreaterThan(rangeStart, include: true)
-       .findAll();
-       
-     final exerciseIds = <int>{};
-     for(var s in sessions) {
-       for(var e in s.entries) {
-         if (e.exerciseId != null) exerciseIds.add(e.exerciseId!);
-       }
-     }
-     
-     if (exerciseIds.isEmpty) return [];
-     
-     // Fetch exercises
-     return await isar.exercises.filter().anyOf(exerciseIds, (q, id) => q.idEqualTo(id)).findAll();
   }
 }

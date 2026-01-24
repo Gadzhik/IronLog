@@ -8,6 +8,7 @@ import 'package:iron_log/ui/screens/exercise_selection_screen.dart';
 import 'package:iron_log/ui/widgets/rest_timer.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:confetti/confetti.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ActiveSessionScreen extends ConsumerStatefulWidget {
   const ActiveSessionScreen({super.key});
@@ -37,27 +38,22 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     final session = ref.watch(activeSessionProvider);
 
     if (session == null) {
-      // Fix: Requirement to NOT show "No active workout" here if it's redundant.
-      // Returning just a loader or empty container to avoid ghosting.
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ТРЕНИРОВКА'),
+        title: Text('ТРЕНИРОВКА', style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 2)),
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.check),
             onPressed: () async {
               if (_formKey.currentState != null && !_formKey.currentState!.validate()) {
                  HapticFeedback.vibrate();
-                 ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Заполните данные!'))
-                 );
                  return;
               }
               
-              HapticFeedback.heavyImpact(); // Requirement: Heavy on save
+              HapticFeedback.heavyImpact();
               _confettiController.play();
               
               await ref.read(activeSessionProvider.notifier).finishSession();
@@ -79,21 +75,14 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      color: Theme.of(context).colorScheme.surface,
+                  child: TextFormField(
+                    initialValue: session.name,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                    decoration: const InputDecoration(
+                      labelText: 'НАЗВАНИЕ',
+                      prefixIcon: Icon(LucideIcons.edit3, size: 20),
                     ),
-                    child: TextFormField(
-                      initialValue: session.name,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                      decoration: const InputDecoration(
-                        labelText: 'Название',
-                        prefixIcon: Icon(LucideIcons.edit3, size: 20),
-                        border: InputBorder.none,
-                      ),
-                      onChanged: (val) => ref.read(activeSessionProvider.notifier).updateName(val),
-                    ),
+                    onChanged: (val) => ref.read(activeSessionProvider.notifier).updateName(val),
                   ),
                 ),
                 Expanded(
@@ -106,7 +95,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                           padding: const EdgeInsets.all(24.0),
                           child: InkWell(
                             onTap: () {
-                               HapticFeedback.lightImpact(); // Requirement: light on tap
+                               HapticFeedback.lightImpact();
                                Navigator.push(context, MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()));
                             },
                             borderRadius: BorderRadius.circular(24),
@@ -122,13 +111,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                                 children: [
                                   Icon(LucideIcons.plus, color: Theme.of(context).colorScheme.primary),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    'Добавить упражнение', 
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.primary, 
-                                      fontWeight: FontWeight.bold
-                                    )
-                                  ),
+                                  const Text('ДОБАВИТЬ УПРАЖНЕНИЕ', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
                                 ],
                               ),
                             ),
@@ -151,8 +134,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
             confettiController: _confettiController,
             blastDirectionality: BlastDirectionality.explosive,
             shouldLoop: false,
-            colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple],
-            gravity: 0.1,
+            colors: [Theme.of(context).colorScheme.primary, Colors.white, Colors.orange],
+            gravity: 0.2,
           ),
         ],
       ),
@@ -170,7 +153,6 @@ class ExerciseEntryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isCardio = entry.exerciseType == ExerciseType.cardio;
     final lastPerfAsync = ref.watch(lastPerformanceProvider(entry.exerciseId ?? -1));
-    final bool canAddSet = entry.sets.isEmpty || entry.sets.last.isCompleted;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -178,13 +160,6 @@ class ExerciseEntryCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,17 +168,12 @@ class ExerciseEntryCard extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Hero(
-                  tag: 'ex_${entry.exerciseId}',
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Text(
-                      entry.exerciseName ?? 'Упражнение',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
+                child: Text(
+                  entry.exerciseName?.toUpperCase() ?? 'УПРАЖНЕНИЕ',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: Theme.of(context).colorScheme.primary,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -218,12 +188,12 @@ class ExerciseEntryCard extends ConsumerWidget {
           ),
           lastPerfAsync.when(
              data: (hint) => hint != null 
-                ? Text('Прошлый раз: $hint', style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12))
+                ? Text('ПРОШЛЫЙ РАЗ: $hint', style: TextStyle(color: Theme.of(context).hintColor, fontSize: 10, fontWeight: FontWeight.bold))
                 : const SizedBox.shrink(),
              loading: () => const SizedBox.shrink(),
              error: (_,__) => const SizedBox.shrink()
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           ...entry.sets.asMap().entries.map((e) => ExerciseSetRow(
             key: ValueKey('set_${entryIndex}_${e.key}'),
             entryIndex: entryIndex, 
@@ -231,14 +201,14 @@ class ExerciseEntryCard extends ConsumerWidget {
             set: e.value, 
             isCardio: isCardio,
           )),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           TextButton.icon(
-            onPressed: canAddSet ? () {
+            onPressed: () {
               HapticFeedback.lightImpact();
               ref.read(activeSessionProvider.notifier).addSet(entryIndex);
-            } : null,
+            },
             icon: const Icon(LucideIcons.plus, size: 18),
-            label: const Text('Добавить подход'),
+            label: const Text('ДОБАВИТЬ ПОДХОД', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
           ),
         ],
       ),
@@ -296,93 +266,50 @@ class _ExerciseSetRowState extends ConsumerState<ExerciseSetRow> {
           Container(
             width: 28,
             height: 28,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: Colors.black, shape: BoxShape.circle),
             alignment: Alignment.center,
-            child: Text(
-              '${widget.setIndex + 1}', 
-              style: TextStyle(
-                fontSize: 12, 
-                fontWeight: FontWeight.bold, 
-                color: Theme.of(context).colorScheme.primary
-              )
-            ),
+            child: Text('${widget.setIndex + 1}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary)),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.background,
-                borderRadius: BorderRadius.circular(12),
+            child: TextField(
+              controller: _col1Controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+              decoration: InputDecoration(
+                hintText: widget.isCardio ? 'КМ' : 'КГ',
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
               ),
-              child: TextField(
-                controller: _col1Controller,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  hintText: widget.isCardio ? 'км' : 'кг',
-                  hintStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  border: InputBorder.none,
-                ),
-                onChanged: (_) {
-                  HapticFeedback.selectionClick();
-                  _save();
-                },
-              ),
+              onChanged: (_) => _save(),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.background,
-                borderRadius: BorderRadius.circular(12),
+            child: TextField(
+              controller: _col2Controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+              decoration: InputDecoration(
+                hintText: widget.isCardio ? 'МИН' : 'ПОВТ',
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
               ),
-              child: TextField(
-                controller: _col2Controller,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  hintText: widget.isCardio ? 'мин' : 'повт',
-                  hintStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  border: InputBorder.none,
-                ),
-                onChanged: (_) {
-                  HapticFeedback.selectionClick();
-                  _save();
-                },
-              ),
+              onChanged: (_) => _save(),
             ),
           ),
           const SizedBox(width: 8),
           IconButton(
             icon: Icon(
-              widget.set.isCompleted ? LucideIcons.checkSquare : LucideIcons.square,
-              color: widget.set.isCompleted ? Theme.of(context).colorScheme.primary : Colors.grey[400],
+              widget.set.isCompleted ? LucideIcons.checkCircle2 : LucideIcons.circle,
+              color: widget.set.isCompleted ? Theme.of(context).colorScheme.primary : Colors.grey[700],
             ),
             onPressed: () {
                HapticFeedback.mediumImpact();
                _save();
-               ref.read(activeSessionProvider.notifier).updateSet(
-                 widget.entryIndex, 
-                 widget.setIndex, 
-                 isCompleted: !widget.set.isCompleted
-               );
+               ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: !widget.set.isCompleted);
             },
           ),
-          IconButton(
-             icon: const Icon(LucideIcons.x, size: 16, color: Colors.grey),
-             onPressed: () {
-                HapticFeedback.lightImpact();
-                ref.read(activeSessionProvider.notifier).removeSet(widget.entryIndex, widget.setIndex);
-             },
-          )
         ],
       ),
     );

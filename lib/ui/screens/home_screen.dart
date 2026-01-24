@@ -9,6 +9,7 @@ import 'package:iron_log/ui/screens/workout_detail_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:iron_log/ui/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -38,12 +39,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         destinations: const [
           NavigationDestination(
             icon: Icon(LucideIcons.list),
-            selectedIcon: Icon(LucideIcons.list, color: Colors.white),
             label: 'Тренировки',
           ),
           NavigationDestination(
             icon: Icon(LucideIcons.trendingUp),
-            selectedIcon: Icon(LucideIcons.trendingUp, color: Colors.white),
             label: 'Прогресс',
           ),
         ],
@@ -70,7 +69,7 @@ class HistoryTab extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('IronLog'),
+        title: Text('IRONLOG', style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 2)),
         actions: [
           PopupMenuButton<AppThemeType>(
             icon: const Icon(LucideIcons.palette),
@@ -79,34 +78,8 @@ class HistoryTab extends ConsumerWidget {
                ref.read(themeProvider.notifier).setTheme(val);
             },
             itemBuilder: (context) => [
-               const PopupMenuItem(value: AppThemeType.light, child: Text('Комфорт')),
-               const PopupMenuItem(value: AppThemeType.toxic, child: Text('Токсик')),
-               const PopupMenuItem(value: AppThemeType.midnight, child: Text('Midnight')),
-            ],
-          ),
-          PopupMenuButton<String>(
-            onSelected: (val) async {
-              if (val == 'export') {
-                 final json = await ref.read(isarServiceProvider).exportData();
-                 if (context.mounted) {
-                    showDialog(context: context, builder: (_) => AlertDialog(
-                      title: const Text('Backup JSON'),
-                      content: SelectableText(json),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: json));
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Копировать'),
-                        )
-                      ],
-                    ));
-                 }
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'export', child: Text('Экспорт')),
+               const PopupMenuItem(value: AppThemeType.onyx, child: Text('Onyx & Gold')),
+               const PopupMenuItem(value: AppThemeType.cyberpunk, child: Text('Cyber Punk')),
             ],
           ),
         ],
@@ -118,48 +91,44 @@ class HistoryTab extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   Icon(LucideIcons.history, size: 64, color: Theme.of(context).dividerColor),
+                   Icon(LucideIcons.dumbbell, size: 64, color: Theme.of(context).disabledColor),
                    const SizedBox(height: 16),
-                   const Text('Нет тренировок', style: TextStyle(color: Colors.grey)),
+                   const Text('НЕТ ТРЕНИРОВОК', style: TextStyle(color: Colors.grey, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                 ],
               ),
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
               final session = sessions[index];
               return Dismissible(
                 key: ValueKey(session.id),
+                direction: DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.only(left: 20),
-                  color: Colors.blue.withOpacity(0.2),
-                  child: const Icon(LucideIcons.eye, color: Colors.blue),
+                  padding: const EdgeInsets.only(left: 24),
+                  color: Colors.red.withOpacity(0.1),
+                  child: const Icon(LucideIcons.trash2, color: Colors.red),
                 ),
                 secondaryBackground: Container(
                   alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  color: Colors.red.withOpacity(0.2),
+                  padding: const EdgeInsets.only(right: 24),
+                  color: Colors.red.withOpacity(0.1),
                   child: const Icon(LucideIcons.trash2, color: Colors.red),
                 ),
-                confirmDismiss: (direction) async {
-                  if (direction == DismissDirection.startToEnd) {
-                     Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
-                     return false;
-                  } else {
-                     return true; 
-                  }
-                },
                 onDismissed: (_) {
                   HapticFeedback.mediumImpact();
                   ref.read(isarServiceProvider).deleteWorkout(session.id);
                 },
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session))),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutDetailScreen(session: session)));
+                    },
                     child: WorkoutHistoryCard(session: session),
                   ),
                 ),
@@ -185,48 +154,41 @@ class WorkoutHistoryCard extends StatelessWidget {
         ? session.endTime!.difference(session.startTime).inMinutes 
         : 0;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                       Text(
-                         session.name?.isNotEmpty == true ? session.name! : 'Тренировка', 
-                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-                       ),
-                       Text(dateStr, style: TextStyle(color: Theme.of(context).hintColor, fontSize: 12)),
-                    ],
-                  ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  session.name?.toUpperCase() ?? 'ТРЕНИРОВКА', 
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 0.5)
                 ),
-                if (duration > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(8)),
-                    child: Text('$duration мин', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: session.entries.take(3).map((e) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Theme.of(context).dividerColor.withOpacity(0.05), borderRadius: BorderRadius.circular(20)),
-                child: Text(e.exerciseName ?? '-', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              )).toList(),
-            ),
-          ],
-        ),
+              ),
+              if (duration > 0)
+                Text('$duration МИН', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900, letterSpacing: 1)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(dateStr, style: TextStyle(color: Theme.of(context).hintColor, fontSize: 11)),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: session.entries.take(4).map((e) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(12)),
+              child: Text(e.exerciseName?.toUpperCase() ?? '-', style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.bold)),
+            )).toList(),
+          ),
+        ],
       ),
     );
   }

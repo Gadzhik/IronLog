@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class WorkoutDetailScreen extends StatelessWidget {
   final WorkoutSession session;
@@ -17,36 +18,38 @@ class WorkoutDetailScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(session.name?.isNotEmpty == true ? session.name! : 'Детали тренировки'),
+        title: Text(session.name?.toUpperCase() ?? 'ДЕТАЛИ ТРЕНИРОВКИ', style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 1)),
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
-          Card(
-             child: Padding(
-               padding: const EdgeInsets.all(20.0),
-               child: Column(
-                 crossAxisAlignment: CrossAxisAlignment.start,
-                 children: [
-                    _InfoRow(icon: LucideIcons.calendar, label: 'Дата', value: dateStr),
-                    if (duration > 0) ...[
-                      const SizedBox(height: 12),
-                      _InfoRow(icon: LucideIcons.clock, label: 'Время', value: '$duration мин'),
-                    ],
-                    if (session.note != null && session.note!.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _InfoRow(icon: LucideIcons.fileText, label: 'Заметка', value: session.note!),
-                    ],
-                 ],
-               ),
+          Container(
+             padding: const EdgeInsets.all(24),
+             decoration: BoxDecoration(
+               color: Theme.of(context).colorScheme.surface,
+               borderRadius: BorderRadius.circular(24),
+             ),
+             child: Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+                  _InfoRow(icon: LucideIcons.calendar, label: 'ДАТА', value: dateStr.toUpperCase()),
+                  if (duration > 0) ...[
+                    const SizedBox(height: 16),
+                    _InfoRow(icon: LucideIcons.clock, label: 'ВРЕМЯ', value: '$duration МИН'),
+                  ],
+                  if (session.note != null && session.note!.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _InfoRow(icon: LucideIcons.fileText, label: 'ЗАМЕТКА', value: session.note!.toUpperCase()),
+                  ],
+               ],
              ),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20, horizontal: 8),
-            child: Text('Упражнения', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            padding: EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+            child: Text('УПРАЖНЕНИЯ', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
           ),
           ...session.entries.map((entry) => _ExerciseDetailCard(entry: entry)).toList(),
-          const SizedBox(height: 40),
+          const SizedBox(height: 48),
         ],
       ),
     );
@@ -64,12 +67,12 @@ class _InfoRow extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 12),
+        const SizedBox(width: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(fontSize: 10, color: Theme.of(context).hintColor)),
-            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(label, style: TextStyle(fontSize: 9, color: Theme.of(context).hintColor, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
           ],
         )
       ],
@@ -84,44 +87,46 @@ class _ExerciseDetailCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCardio = entry.exerciseType == ExerciseType.cardio;
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              entry.exerciseName ?? 'Упражнение',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _HeaderCell(label: '#', width: 30),
-                _HeaderCell(label: isCardio ? 'Дистанция' : 'Вес', expanded: true),
-                _HeaderCell(label: isCardio ? 'Время' : 'Повт', expanded: true),
-              ],
-            ),
-            const Divider(height: 24),
-            ...entry.sets.asMap().entries.map((e) {
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.exerciseName?.toUpperCase() ?? 'УПРАЖНЕНИЕ',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              _HeaderCell(label: '#', width: 30),
+              _HeaderCell(label: isCardio ? 'ДИСТАНЦИЯ' : 'ВЕС', expanded: true),
+              _HeaderCell(label: isCardio ? 'ВРЕМЯ' : 'ПОВТ', expanded: true),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...entry.sets.asMap().entries.map((e) {
                final i = e.key + 1;
                final s = e.value;
                String f(num v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
                
                return Padding(
-                 padding: const EdgeInsets.symmetric(vertical: 6.0),
+                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                  child: Row(
                     children: [
-                      SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).hintColor))),
-                      Expanded(child: Text('${f(isCardio ? s.distance : s.weight)} ${isCardio ? 'км' : 'кг'}')),
-                      Expanded(child: Text('${f(isCardio ? s.duration : s.reps)} ${isCardio ? 'с' : ''}')),
+                      SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, fontSize: 12))),
+                      Expanded(child: Text('${f(isCardio ? s.distance : s.weight)} ${isCardio ? 'КМ' : 'КГ'}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      Expanded(child: Text('${f(isCardio ? s.duration : s.reps)} ${isCardio ? 'МИН' : ''}', style: const TextStyle(fontWeight: FontWeight.bold))),
                     ],
                  ),
                );
-            }),
-          ],
-        ),
+          }),
+        ],
       ),
     );
   }
@@ -135,7 +140,7 @@ class _HeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Theme.of(context).hintColor));
+    final child = Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, letterSpacing: 1));
     if (expanded) return Expanded(child: child);
     return SizedBox(width: width, child: child);
   }
