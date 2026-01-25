@@ -114,6 +114,33 @@ class _ExerciseDetailCard extends StatelessWidget {
                final i = e.key + 1;
                final s = e.value;
                String f(num v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
+
+               final isBodyweight = ['Книжка', 'Гиперэкстензия', 'Подтягивания', 'Отжимания на брусьях', 'Отжимания от скамьи'].any((el) => entry.exerciseName?.contains(el) ?? false) || (entry.exerciseCategory?.contains('Пресс') ?? false);
+               final isPlank = entry.exerciseName?.contains('Планка') ?? false;
+
+               if (isPlank) {
+                 return Padding(
+                   padding: const EdgeInsets.symmetric(vertical: 8.0),
+                   child: Row(
+                      children: [
+                        SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, fontSize: 12))),
+                        Expanded(child: Text('-', style: const TextStyle(fontWeight: FontWeight.bold))),
+                        Expanded(child: Text('${f(s.duration / 60)} МИН', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      ],
+                   ),
+                 );
+               } else if (isBodyweight) {
+                 return Padding(
+                   padding: const EdgeInsets.symmetric(vertical: 8.0),
+                   child: Row(
+                      children: [
+                        SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, fontSize: 12))),
+                        Expanded(child: Text('-', style: const TextStyle(fontWeight: FontWeight.bold))),
+                        Expanded(child: Text('${f(s.reps)} ПОВТ', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      ],
+                   ),
+                 );
+               }
                
                return Padding(
                  padding: const EdgeInsets.symmetric(vertical: 8.0),

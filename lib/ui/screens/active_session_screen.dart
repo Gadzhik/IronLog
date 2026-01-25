@@ -23,6 +23,10 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   late ConfettiController _confettiController;
   final TextEditingController _nameController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  // Map to store FocusNodes for each exercise entry index
+  final Map<int, FocusNode> _focusNodes = {};
+  int _prevEntryCount = 0;
   bool _isSaving = false;
 
   @override
@@ -30,10 +34,24 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     
+    // Validation Listener
+    _nameController.addListener(() {
+      setState(() {});
+    });
+    
+    // Default Name Logic
+    final now = DateTime.now();
+    final defaultName = 'Тренинг ${DateFormat('dd.MM.yy-HH.mm.ss').format(now)}';
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = ref.read(activeSessionProvider);
       if (session != null) {
-        _nameController.text = session.name ?? ""; 
+        if (session.name == null || session.name!.isEmpty) {
+           _nameController.text = defaultName;
+           ref.read(activeSessionProvider.notifier).updateName(defaultName);
+        } else {
+           _nameController.text = session.name!; 
+        }
       }
     });
   }
@@ -42,6 +60,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   void dispose() {
     _confettiController.dispose();
     _nameController.dispose();
+    _scrollController.dispose();
+    for (var node in _focusNodes.values) node.dispose();
     super.dispose();
   }
 
@@ -136,6 +156,24 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     final session = ref.watch(activeSessionProvider);
     if (session == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
+    // Focus Management Logic
+    final currentCount = session.entries.length;
+    if (currentCount > _prevEntryCount) {
+       // A new exercise was added
+       final newIndex = currentCount - 1;
+       _focusNodes[newIndex] = FocusNode();
+       
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+          _focusNodes[newIndex]?.requestFocus();
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+       });
+    }
+    _prevEntryCount = currentCount;
+
     final bool canFinish = _isSessionValid(session);
 
     return Scaffold(
@@ -172,12 +210,15 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                   decoration: const InputDecoration(
                     labelText: 'НАЗВАНИЕ ТРЕНИРОВКИ',
                     prefixIcon: Icon(LucideIcons.edit3, size: 20),
-                    floatingLabelBehavior: FloatingLabelBehavior.always,
+                    floatingLabelBehavior: FloatingLabelBehavior.auto,
+                    hintText: 'Название тренировки (напр. Спина и Бицепс)',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                 ),
               ),
               Expanded(
                 child: ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   itemCount: session.entries.length + 1,
                   itemBuilder: (context, index) {
@@ -215,6 +256,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                       entryIndex: index, 
                       entry: session.entries[index],
                       isSaving: _isSaving,
+                      focusNode: _focusNodes[index], // Pass the focus node
                     );
                   },
                 ),
@@ -239,8 +281,9 @@ class ExerciseEntryCard extends ConsumerWidget {
   final int entryIndex;
   final WorkoutEntry entry;
   final bool isSaving;
+  final FocusNode? focusNode;
 
-  const ExerciseEntryCard({super.key, required this.entryIndex, required this.entry, required this.isSaving});
+  const ExerciseEntryCard({super.key, required this.entryIndex, required this.entry, required this.isSaving, this.focusNode});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -296,6 +339,8 @@ class ExerciseEntryCard extends ConsumerWidget {
             type: entry.exerciseType,
             exerciseName: entry.exerciseName ?? '',
             exerciseCategory: entry.exerciseCategory ?? '',
+            // Pass focus node only to the first set of the newly added exercise
+            focusNode: (e.key == 0) ? focusNode : null,
           )),
           const SizedBox(height: 8),
           if (!isSaving)

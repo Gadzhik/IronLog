@@ -194,7 +194,7 @@ class WorkoutHistoryCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   session.name?.toUpperCase() ?? 'ТРЕНИРОВКА', 
-                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 0.5)
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.5)
                 ),
               ),
               if (duration > 0)

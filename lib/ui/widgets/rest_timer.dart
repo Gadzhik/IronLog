@@ -94,15 +94,18 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
                child: Column(
                  mainAxisSize: MainAxisSize.min,
                  children: [
-                   Text(
-                     'ПРИГОТОВИТЬСЯ', 
-                     style: TextStyle(
-                       color: primaryColor, 
-                       fontSize: 42, 
-                       fontWeight: FontWeight.w900,
-                       letterSpacing: 2,
-                       shadows: [Shadow(color: primaryColor.withOpacity(0.5), blurRadius: 20)]
-                     )
+                   FittedBox(
+                     fit: BoxFit.scaleDown,
+                     child: Text(
+                       'ПРИГОТОВИТЬСЯ', 
+                       style: TextStyle(
+                         color: primaryColor, 
+                         fontSize: 42, 
+                         fontWeight: FontWeight.w900,
+                         letterSpacing: 2,
+                         shadows: [Shadow(color: primaryColor.withOpacity(0.5), blurRadius: 20)]
+                       )
+                     ),
                    ),
                    const SizedBox(height: 32),
                    Text(

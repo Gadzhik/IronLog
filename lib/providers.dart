@@ -43,7 +43,15 @@ final lastPerformanceProvider = FutureProvider.family<String?, int>((ref, exerci
              // Rule for specific exercises (bodyweight/abs)
              final name = e.exerciseName ?? '';
              final category = e.exerciseCategory ?? '';
-             if (category.contains('Пресс') || name.contains('Книжка')) {
+             
+             final isBodyweight = category.contains('Пресс') || 
+                                  name.contains('Книжка') ||
+                                  name.contains('Гиперэкстензия') ||
+                                  name.contains('Подтягивания') ||
+                                  name.contains('Отжимания на брусьях') ||
+                                  name.contains('Отжимания от скамьи');
+
+             if (isBodyweight) {
                 return '${lastSet.reps} ПОВТ';
              }
              

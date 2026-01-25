@@ -13,6 +13,7 @@ class AddSetWidget extends ConsumerStatefulWidget {
   final ExerciseType type;
   final String exerciseName;
   final String exerciseCategory;
+  final FocusNode? focusNode;
 
   const AddSetWidget({
     super.key,
@@ -22,6 +23,7 @@ class AddSetWidget extends ConsumerStatefulWidget {
     required this.type,
     required this.exerciseName,
     required this.exerciseCategory,
+    this.focusNode,
   });
 
   @override
@@ -136,6 +138,7 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
           Expanded(
             child: TextField(
               controller: _col1Controller,
+              focusNode: widget.focusNode, // Assign the focus node here
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
