@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/data/models/exercise.dart';
@@ -24,11 +25,24 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
   final isarService = ref.read(isarServiceProvider);
   final db = await isarService.db;
   
-  // REACTIVE STREAM using .watch()
+  // REACTIVE STREAM with Debounce logic implementation via Stream mapping
   final query = db.workoutSessions.where().sortByStartTime().build();
   
-  yield* query.watch(fireImmediately: true).map((sessions) {
-    if (sessions.isEmpty) return [];
+  // Implementation of a 500ms debounce to prevent UI flickering and main thread lag
+  Stream<List<WorkoutSession>> stream = query.watch(fireImmediately: true);
+  
+  // Manual debounce implementation since rxdart is not available
+  DateTime lastUpdate = DateTime.now();
+  
+  yield* stream.asyncMap((sessions) async {
+    // Basic throttle/debounce simulation to protect main thread
+    final now = DateTime.now();
+    if (now.difference(lastUpdate) < const Duration(milliseconds: 500)) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+    lastUpdate = DateTime.now();
+
+    if (sessions.isEmpty) return <ProgressDataPoint>[];
 
     List<ProgressDataPoint> points = [];
     
@@ -41,30 +55,27 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
           double value = 0;
           double? secondary;
 
-          // SPECIAL LOGIC: Identify exercise type by name/category or official type
           final String name = entry.exerciseName ?? '';
           final String category = entry.exerciseCategory ?? '';
           
-          final isBodyweight = category == 'Пресс' || 
-                              ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(name);
-          final isPlank = name == 'Планка';
-          final isStatic = entry.exerciseType == ExerciseType.static || isPlank;
+          final bool isPlank = name.contains('Планка');
+          final bool isBodyweightOnly = category.contains('Пресс') || 
+                                       name.contains('Книжка') ||
+                                       name.contains('Гиперэкстензия') ||
+                                       name.contains('Подтягивания') ||
+                                       name.contains('Отжимания');
           
           if (isPlank) {
-            // "Планка" handles duration in minutes for the chart
             for (var s in completedSets) {
               double mins = s.duration / 60.0;
               if (mins > value) value = mins;
             }
-          } else if (isBodyweight) {
-            // Bodyweight handles REPS as primary metric
+          } else if (isBodyweightOnly) {
             for (var s in completedSets) {
               if (s.reps > value) value = s.reps.toDouble();
-              // Extra weight as secondary
-              if (s.weight > (secondary ?? 0)) secondary = s.weight;
             }
+            secondary = null; 
           } else if (entry.exerciseType == ExerciseType.cardio) {
-            // Cardio: Distance as primary
             double totalDist = 0;
             double totalDur = 0;
             for (var s in completedSets) {
@@ -74,7 +85,6 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
             value = totalDist;
             secondary = totalDur;
           } else {
-            // Strength (Default): Weight as primary
             for (var s in completedSets) {
               if (s.weight > value) value = s.weight;
             }
@@ -87,17 +97,18 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
               secondaryValue: secondary,
             ));
           }
-          break; // Found the exercise in this session, move to next session
+          break; 
         }
       }
     }
 
-    // Process percent changes and growth
     points.sort((a, b) => a.date.compareTo(b.date));
     List<ProgressDataPoint> finalized = [];
+    
     for (int i = 0; i < points.length; i++) {
         double pct = 0;
         bool growth = false;
+        
         if (i > 0) {
           double prev = points[i-1].value;
           if (prev > 0) {
@@ -105,6 +116,7 @@ final progressStreamProvider = StreamProvider.family<List<ProgressDataPoint>, in
             growth = points[i].value > prev;
           }
         }
+        
         finalized.add(ProgressDataPoint(
           date: points[i].date,
           value: points[i].value,

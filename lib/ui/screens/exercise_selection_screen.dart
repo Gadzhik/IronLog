@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:iron_log/data/models/exercise.dart'; // REQUIRED IMPORT
 import 'package:iron_log/providers.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -31,6 +32,7 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
 
   @override
   Widget build(BuildContext context) {
+    // Explicitly using the provider
     final exercisesAsync = ref.watch(searchExerciseProvider(_query));
 
     return Scaffold(
@@ -56,13 +58,24 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
                   return const Center(child: Text('НИЧЕГО НЕ НАЙДЕНО', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)));
                 }
 
-                final grouped = groupBy(exercises, (e) => e.category);
-                final sortedKeys = grouped.keys.toList()..sort();
+                // Explicitly typed grouping with proper casting
+                final Map<String, List<Exercise>> grouped = groupBy<Exercise, String>(
+                    exercises, 
+                    (Exercise e) => e.category ?? 'ПРОЧЕЕ'
+                );
+                
+                final List<String> sortedKeys = grouped.keys.toList()..sort((a, b) {
+                  if (a == 'ПРОЧЕЕ') return 1;
+                  if (b == 'ПРОЧЕЕ') return -1;
+                  return a.compareTo(b);
+                });
 
                 return ListView(
                   padding: const EdgeInsets.only(bottom: 40),
-                  children: sortedKeys.map((category) {
-                    final categoryExercises = grouped[category]!;
+                  children: sortedKeys.map((String category) {
+                    final List<Exercise>? categoryExercises = grouped[category];
+                    if (categoryExercises == null) return const SizedBox.shrink();
+
                     return Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(
@@ -75,7 +88,7 @@ class _ExerciseSelectionScreenState extends ConsumerState<ExerciseSelectionScree
                         initiallyExpanded: _query.isNotEmpty,
                         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
                         collapsedShape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-                        children: categoryExercises.map((exercise) {
+                        children: categoryExercises.map((Exercise exercise) {
                            return ListTile(
                               contentPadding: const EdgeInsets.symmetric(horizontal: 24),
                               title: Text(exercise.name.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),

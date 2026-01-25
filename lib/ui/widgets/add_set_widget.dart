@@ -46,12 +46,21 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
     super.dispose();
   }
 
+  bool get _isPlank => widget.exerciseName.contains('Планка');
+  
+  bool get _isBodyweightOnly => 
+    widget.exerciseCategory.contains('Пресс') || 
+    widget.exerciseName.contains('Книжка') ||
+    widget.exerciseName.contains('Гиперэкстензия') ||
+    widget.exerciseName.contains('Подтягивания') ||
+    widget.exerciseName.contains('Отжимания от скамьи') ||
+    widget.exerciseName.contains('Отжимания на брусьях');
+
   String _getInitialValue1() {
-    if (widget.exerciseName == 'Планка') {
+    if (_isPlank) {
       return widget.set.duration == 0 ? '' : (widget.set.duration / 60).toStringAsFixed(1).replaceAll('.0', '');
     }
-    if (widget.exerciseCategory == 'Пресс' || 
-        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+    if (_isBodyweightOnly) {
       return widget.set.reps == 0 ? '' : widget.set.reps.toString();
     }
     switch (widget.type) {
@@ -63,10 +72,8 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
   }
 
   String _getInitialValue2() {
-    if (widget.exerciseName == 'Планка' || widget.exerciseCategory == 'Пресс' || 
-        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
-      return '';
-    }
+    if (_isPlank || _isBodyweightOnly) return '';
+    
     switch (widget.type) {
       case ExerciseType.strength: return widget.set.reps == 0 ? '' : widget.set.reps.toString();
       case ExerciseType.cardio: return widget.set.duration == 0 ? '' : widget.set.duration.toString();
@@ -81,15 +88,12 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
     final v1 = double.tryParse(v1Str) ?? 0;
     final v2 = int.tryParse(v2Str) ?? 0;
 
-    debugPrint('Saving Set: ${widget.exerciseName} - V1: $v1, V2: $v2');
-
-    if (widget.exerciseName == 'Планка') {
+    if (_isPlank) {
       ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, duration: (v1 * 60).toInt());
       return;
     }
 
-    if (widget.exerciseCategory == 'Пресс' || 
-        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
+    if (_isBodyweightOnly) {
       ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, reps: v1.toInt());
       return;
     }
@@ -110,32 +114,12 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
     }
   }
 
-  bool _isValid() {
-    final v1 = double.tryParse(_col1Controller.text.trim()) ?? 0;
-    final v2 = int.tryParse(_col2Controller.text.trim()) ?? 0;
-
-    if (widget.exerciseName == 'Планка') return v1 > 0;
-    if (widget.exerciseCategory == 'Пресс' || 
-        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
-      return v1 > 0;
-    }
-
-    switch (widget.type) {
-      case ExerciseType.strength: return v1 > 0 && v2 > 0;
-      case ExerciseType.bodyweight: return v1 > 0;
-      case ExerciseType.cardio: return v1 > 0 && v2 > 0;
-      case ExerciseType.static: return v1 > 0;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isValid = _isValid();
+    
     final bool showSecondField = (widget.type == ExerciseType.strength || widget.type == ExerciseType.cardio) && 
-                                 widget.exerciseName != 'Планка' && 
-                                 widget.exerciseCategory != 'Пресс' && 
-                                 !['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName);
+                                 !_isPlank && !_isBodyweightOnly;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -187,18 +171,13 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
               size: 24,
               color: widget.set.isCompleted 
                   ? theme.colorScheme.primary 
-                  : (isValid ? Colors.grey[400] : Colors.grey[800]),
+                  : (widget.set.isCompleted ? Colors.grey[400] : Colors.grey[800]),
             ),
             onPressed: () {
               if (widget.set.isCompleted) {
                 HapticFeedback.lightImpact();
                 ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: false);
               } else {
-                if (!isValid) {
-                  HapticFeedback.vibrate();
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Заполните обязательные поля')));
-                  return;
-                }
                 HapticFeedback.mediumImpact();
                 _save();
                 ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, isCompleted: true);
@@ -218,11 +197,8 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
   }
 
   String _getHint1() {
-    if (widget.exerciseName == 'Планка') return 'МИН';
-    if (widget.exerciseCategory == 'Пресс' || 
-        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(widget.exerciseName)) {
-      return 'ПОВТ';
-    }
+    if (_isPlank) return 'МИН';
+    if (_isBodyweightOnly) return 'ПОВТ';
     switch (widget.type) {
       case ExerciseType.strength: return 'КГ';
       case ExerciseType.bodyweight: return 'ПОВТ';
@@ -232,6 +208,9 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
   }
 
   String _getHint2() {
+    // Override: No second field for Plank or Bodyweight
+    if (_isPlank || _isBodyweightOnly) return '';
+    
     switch (widget.type) {
       case ExerciseType.strength: return 'ПОВТ';
       case ExerciseType.cardio: return 'МИН';

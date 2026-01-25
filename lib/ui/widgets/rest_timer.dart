@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:iron_log/ui/app_theme.dart';
 
 class RestTimerButton extends ConsumerWidget {
   const RestTimerButton({super.key});
@@ -26,8 +25,18 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
   final AudioPlayer _player = AudioPlayer();
   bool _alertTriggered = false;
   OverlayEntry? _overlayEntry;
+  Color? _cachedPrimary;
+  OverlayState? _cachedOverlay;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cachedPrimary = Theme.of(context).colorScheme.primary;
+    _cachedOverlay = Overlay.of(context);
+  }
 
   void startTimer(int seconds) {
+    if (!mounted) return;
     setState(() {
       _secondsRemaining = seconds;
       _alertTriggered = false; 
@@ -47,19 +56,19 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
 
         if (_secondsRemaining <= 10 && !_alertTriggered) {
            _alertTriggered = true;
-           bool? hasVibrator = await Vibration.hasVibrator();
-           if (hasVibrator == true) {
+           final hasVibrator = await Vibration.hasVibrator();
+           if (mounted && hasVibrator == true) {
              Vibration.vibrate(duration: 500); 
            }
            try {
-             await _player.play(AssetSource('sounds/alert.mp3'));
+             if (mounted) await _player.play(AssetSource('sounds/alert.mp3'));
            } catch (e) { /* ignore */ }
         }
       } else {
         timer.cancel();
         _showOverlay(false);
-        bool? hasVibrator = await Vibration.hasVibrator();
-         if (hasVibrator == true) {
+        final hasVibrator = await Vibration.hasVibrator();
+         if (mounted && hasVibrator == true) {
            Vibration.vibrate(pattern: [0, 500, 200, 500]); 
          }
       }
@@ -67,10 +76,16 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
   }
   
   void _showOverlay(bool show) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
+    // Safety check: ensure we don't try to use null overlay or unmounted logic inappropriately
+    if (!mounted && show) return; 
+    
+    // Ensure we have the overlay state (captured in didChangeDependencies)
+    if (_cachedOverlay == null) return;
+    final primaryColor = _cachedPrimary ?? Colors.orange;
 
     if (show && _overlayEntry == null) {
+      if (!mounted) return; // double check
+
       _overlayEntry = OverlayEntry(builder: (context) {
          return Positioned.fill(
            child: Material(
@@ -100,19 +115,29 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
            ),
          );
       });
-      Overlay.of(context).insert(_overlayEntry!);
+      _cachedOverlay?.insert(_overlayEntry!);
     } else if (!show && _overlayEntry != null) {
-      _overlayEntry!.remove();
+      _overlayEntry?.remove();
       _overlayEntry = null;
     } else if (show && _overlayEntry != null) {
-       _overlayEntry!.markNeedsBuild();
+       _overlayEntry?.markNeedsBuild();
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _showOverlay(false);
+    
+    // STRICT RULE: Do not use Theme.of(context) or Navigator here.
+    // Clean up overlay without context dependencies using cached variable if needed, 
+    // or just remove the entry which is safe.
+    if (_overlayEntry != null) {
+      try {
+        _overlayEntry?.remove(); 
+      } catch (e) { /* silent fail */ }
+      _overlayEntry = null;
+    }
+    
     _player.dispose();
     super.dispose();
   }
@@ -179,7 +204,7 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
                    icon: const Icon(Icons.stop_circle_rounded, size: 36, color: Colors.grey),
                    onPressed: () {
                      _timer?.cancel();
-                     setState(() => _secondsRemaining = 0);
+                     if (mounted) setState(() => _secondsRemaining = 0);
                      _showOverlay(false);
                    },
                  )

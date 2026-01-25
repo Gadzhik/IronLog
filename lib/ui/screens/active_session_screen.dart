@@ -22,24 +22,18 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   late ConfettiController _confettiController;
-  final FocusNode _nameFocusNode = FocusNode();
   final TextEditingController _nameController = TextEditingController();
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     
-    _nameFocusNode.addListener(() {
-      if (_nameFocusNode.hasFocus) {
-         _nameController.clear();
-      }
-    });
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = ref.read(activeSessionProvider);
       if (session != null) {
-        _nameController.text = ""; 
+        _nameController.text = session.name ?? ""; 
       }
     });
   }
@@ -47,43 +41,79 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   @override
   void dispose() {
     _confettiController.dispose();
-    _nameFocusNode.dispose();
     _nameController.dispose();
     super.dispose();
   }
 
-  bool _isSessionValid(WorkoutSession? session) {
-    if (session == null || session.entries.isEmpty) {
-      debugPrint('Validation Failed: Session is null or entries are empty');
-      return false;
-    }
-    
-    for (var i = 0; i < session.entries.length; i++) {
-      final entry = session.entries[i];
-      if (entry.sets.isEmpty) {
-        debugPrint('Validation Failed: Entry ${entry.exerciseName} has no sets');
-        return false;
-      }
-      for (var j = 0; j < entry.sets.length; j++) {
-        final set = entry.sets[j];
-        if (!set.isCompleted) {
-          debugPrint('Validation Failed: Set ${j + 1} for ${entry.exerciseName} is not checked');
-          return false;
-        }
+  Future<void> _saveWorkout() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return; 
 
+    if (!mounted) return;
+    
+    // 1. Set Loading
+    setState(() => _isSaving = true);
+    HapticFeedback.heavyImpact();
+
+    try {
+      // 2. Update Name
+      ref.read(activeSessionProvider.notifier).updateName(name);
+
+      // 3. Save (Fail-Safe)
+      await ref.read(activeSessionProvider.notifier).finishSession();
+
+      // 4. Invalidate
+      ref.invalidate(historyProvider);
+      ref.invalidate(progressStreamProvider);
+      
+      // 5. Confetti
+      _confettiController.play();
+
+      // 6. Success Navigation
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 2000));
+      
+      if (mounted) {
+         Navigator.pop(context); 
+      }
+
+    } catch (e) {
+      debugPrint("SAVE ERROR: $e");
+      if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Ошибка сохранения: $e'), backgroundColor: Colors.red),
+           );
+      }
+    } finally {
+      // 7. MANDATORY Finalization
+      if (mounted) {
+         setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  bool _isSessionValid(WorkoutSession? session) {
+    if (session == null || session.entries.isEmpty) return false;
+    
+    for (var entry in session.entries) {
+      if (entry.sets.isEmpty) return false;
+      for (var set in entry.sets) {
+        if (!set.isCompleted) return false;
+        
         bool isValid = false;
         final name = entry.exerciseName ?? '';
         final category = entry.exerciseCategory ?? '';
 
-        if (name == 'Планка') {
+        if (name.contains('Планка') || entry.exerciseType == ExerciseType.static) {
            isValid = set.duration > 0;
-        } else if (category == 'Пресс' || 
+        } else if (category.contains('Пресс') || 
+                  name.contains('Книжка') ||
                   ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(name)) {
            isValid = set.reps > 0;
         } else {
           switch (entry.exerciseType) {
             case ExerciseType.strength:
-              isValid = (set.weight >= 0) && set.reps > 0; // Allowing 0 weight for bodyweight-like strength moves
+              isValid = set.reps > 0; // Allowing 0 weight for bodyweight-like moves
               break;
             case ExerciseType.bodyweight:
               isValid = set.reps > 0;
@@ -91,16 +121,11 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
             case ExerciseType.cardio:
               isValid = set.duration > 0 && set.distance > 0;
               break;
-            case ExerciseType.static:
-              isValid = set.duration > 0;
-              break;
+            default:
+              isValid = false;
           }
         }
-
-        if (!isValid) {
-          debugPrint('Validation Failed: ${entry.exerciseName} Set ${j + 1} incomplete: w=${set.weight}, r=${set.reps}, dur=${set.duration}');
-          return false;
-        }
+        if (!isValid) return false;
       }
     }
     return true;
@@ -109,10 +134,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(activeSessionProvider);
-
-    if (session == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (session == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final bool canFinish = _isSessionValid(session);
 
@@ -120,50 +142,20 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       appBar: AppBar(
         title: Text('ТРЕНИРОВКА', style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 2)),
         actions: [
-          IconButton(
-            icon: Icon(LucideIcons.check, color: canFinish ? Theme.of(context).colorScheme.primary : Colors.grey),
-            onPressed: () async {
-              if (!canFinish) {
-                 HapticFeedback.vibrate();
-                 ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Заполните все данные и подтвердите подходы (чекбоксы)'))
-                 );
-                 return;
-              }
-              
-              HapticFeedback.heavyImpact();
-              
-              final finalName = _nameController.text.trim();
-              if (finalName.isNotEmpty) {
-                 ref.read(activeSessionProvider.notifier).updateName(finalName);
-              } else {
-                 final now = DateTime.now();
-                 ref.read(activeSessionProvider.notifier).updateName('Тренировка от ${DateFormat('dd.MM.yy').format(now)}');
-              }
-              
-              try {
-                await ref.read(activeSessionProvider.notifier).finishSession();
-                
-                // Success feedback
-                _confettiController.play();
-                
-                // Force reactive reload
-                ref.invalidate(historyProvider);
-                ref.invalidate(progressStreamProvider);
-                ref.invalidate(lastPerformanceProvider);
-                
-                Future.delayed(const Duration(milliseconds: 2000), () {
-                  if (mounted) Navigator.pop(context);
-                });
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Ошибка сохранения: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              }
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _nameController,
+            builder: (context, value, child) {
+              final isNameValid = value.text.trim().isNotEmpty;
+              final bool isReady = canFinish && isNameValid && !_isSaving;
+
+              return IconButton(
+                icon: _isSaving 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Icon(LucideIcons.check, color: isReady ? Theme.of(context).colorScheme.primary : Colors.grey),
+                onPressed: isReady ? _saveWorkout : null,
+                tooltip: 'Завершить',
+              );
             },
-            tooltip: 'Завершить',
           )
         ],
       ),
@@ -176,13 +168,10 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: TextField(
                   controller: _nameController,
-                  focusNode: _nameFocusNode,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                  decoration: InputDecoration(
-                    labelText: 'НАЗВАНИЕ',
-                    hintText: 'Моя тренировка',
-                    hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
-                    prefixIcon: const Icon(LucideIcons.edit3, size: 20),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                  decoration: const InputDecoration(
+                    labelText: 'НАЗВАНИЕ ТРЕНИРОВКИ',
+                    prefixIcon: Icon(LucideIcons.edit3, size: 20),
                     floatingLabelBehavior: FloatingLabelBehavior.always,
                   ),
                 ),
@@ -197,6 +186,7 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                         padding: const EdgeInsets.all(20.0),
                         child: InkWell(
                           onTap: () {
+                             if (_isSaving) return;
                              HapticFeedback.lightImpact();
                              Navigator.push(context, MaterialPageRoute(builder: (_) => const ExerciseSelectionScreen()));
                           },
@@ -223,7 +213,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                     return ExerciseEntryCard(
                       key: ValueKey('entry_${index}_${session.entries[index].exerciseId}'),
                       entryIndex: index, 
-                      entry: session.entries[index]
+                      entry: session.entries[index],
+                      isSaving: _isSaving,
                     );
                   },
                 ),
@@ -247,8 +238,9 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
 class ExerciseEntryCard extends ConsumerWidget {
   final int entryIndex;
   final WorkoutEntry entry;
+  final bool isSaving;
 
-  const ExerciseEntryCard({super.key, required this.entryIndex, required this.entry});
+  const ExerciseEntryCard({super.key, required this.entryIndex, required this.entry, required this.isSaving});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -278,13 +270,14 @@ class ExerciseEntryCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.grey),
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  ref.read(activeSessionProvider.notifier).removeExercise(entryIndex);
-                },
-              )
+              if (!isSaving)
+                IconButton(
+                  icon: const Icon(LucideIcons.trash2, size: 18, color: Colors.grey),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    ref.read(activeSessionProvider.notifier).removeExercise(entryIndex);
+                  },
+                )
             ],
           ),
           lastPerfAsync.when(
@@ -305,14 +298,15 @@ class ExerciseEntryCard extends ConsumerWidget {
             exerciseCategory: entry.exerciseCategory ?? '',
           )),
           const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              ref.read(activeSessionProvider.notifier).addSet(entryIndex);
-            },
-            icon: const Icon(LucideIcons.plus, size: 16),
-            label: const Text('ДОБАВИТЬ ПОДХОД', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 11)),
-          ),
+          if (!isSaving)
+            TextButton.icon(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                ref.read(activeSessionProvider.notifier).addSet(entryIndex);
+              },
+              icon: const Icon(LucideIcons.plus, size: 16),
+              label: const Text('ДОБАВИТЬ ПОДХОД', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 11)),
+            ),
         ],
       ),
     );

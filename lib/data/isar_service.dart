@@ -1,6 +1,4 @@
-import 'dart:convert';
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'models/exercise.dart';
@@ -28,7 +26,7 @@ class IsarService {
       }
       return Isar.getInstance()!;
     } catch (e) {
-      print("Isar Initialization Error: $e");
+      debugPrint("Isar Initialization Error: $e");
       rethrow;
     }
   }
@@ -102,9 +100,22 @@ class IsarService {
 
   Future<void> saveWorkoutSession(WorkoutSession session) async {
     final isar = await db;
-    await isar.writeTxn(() async {
-      await isar.workoutSessions.put(session);
-    });
+    if (!isar.isOpen) {
+      throw Exception('База данных закрыта или не инициализирована');
+    }
+    
+    // 5-second timeout protection to prevent infinite loading
+    try {
+      await isar.writeTxn(() async {
+        await isar.workoutSessions.put(session);
+      }).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw Exception('Превышено время ожидания записи в базу'),
+      );
+    } catch (e) {
+      debugPrint('Isar Save Error: $e');
+      rethrow;
+    }
   }
 
   Stream<List<WorkoutSession>> watchWorkoutHistory() async* {

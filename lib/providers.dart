@@ -3,12 +3,12 @@ import 'package:iron_log/data/isar_service.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart';
 
 final isarServiceProvider = Provider<IsarService>((ref) {
   return IsarService();
 });
 
-// Fix: Progress Screen should show ALL exercises
 final allExercisesProvider = FutureProvider<List<Exercise>>((ref) async {
   final service = ref.read(isarServiceProvider);
   return await service.getAllExercises();
@@ -16,8 +16,8 @@ final allExercisesProvider = FutureProvider<List<Exercise>>((ref) async {
 
 final searchExerciseProvider = FutureProvider.family<List<Exercise>, String>((ref, query) async {
   final service = ref.read(isarServiceProvider);
-  if (query.isEmpty) return service.getAllExercises();
-  return service.searchExercises(query);
+  if (query.isEmpty) return await service.getAllExercises();
+  return await service.searchExercises(query);
 });
 
 final historyProvider = StreamProvider<List<WorkoutSession>>((ref) {
@@ -39,6 +39,14 @@ final lastPerformanceProvider = FutureProvider.family<String?, int>((ref, exerci
              if (e.exerciseType == ExerciseType.cardio) {
                return '${lastSet.distance}КМ / ${lastSet.duration}МИН';
              }
+             
+             // Rule for specific exercises (bodyweight/abs)
+             final name = e.exerciseName ?? '';
+             final category = e.exerciseCategory ?? '';
+             if (category.contains('Пресс') || name.contains('Книжка')) {
+                return '${lastSet.reps} ПОВТ';
+             }
+             
              return '${lastSet.weight}КГ x ${lastSet.reps}';
           }
        }
@@ -48,6 +56,8 @@ final lastPerformanceProvider = FutureProvider.family<String?, int>((ref, exerci
 
 class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
   final IsarService _service;
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
 
   ActiveSessionNotifier(this._service) : super(null);
 
@@ -55,99 +65,78 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
     final now = DateTime.now();
     String defaultName = 'ТРЕНИРОВКА ${DateFormat('dd.MM').format(now)}';
     state = WorkoutSession()..startTime = now..name = defaultName;
-    _save();
   }
   
   void updateName(String name) {
      if (state == null) return;
      state!.name = name;
      state = _clone(state!);
-     _save();
   }
 
   void addExercise(Exercise exercise) {
     if (state == null) return;
-    
     final entry = WorkoutEntry()
       ..exerciseId = exercise.id
       ..exerciseName = exercise.name
       ..exerciseCategory = exercise.category
       ..exerciseType = exercise.type
       ..sets = [WorkoutSet()..timestamp = DateTime.now()]; 
-
-    final newEntries = List<WorkoutEntry>.from(state!.entries);
-    newEntries.add(entry);
-    
-    state!.entries = newEntries;
+    state!.entries.add(entry);
     state = _clone(state!);
-    _save();
   }
 
   void addSet(int entryIndex) {
     if (state == null) return;
-    if (entryIndex >= state!.entries.length) return;
-    
-    final entry = state!.entries[entryIndex];
-    final newSet = WorkoutSet()..timestamp = DateTime.now();
-
-    final newSets = List<WorkoutSet>.from(entry.sets);
-    newSets.add(newSet);
-    entry.sets = newSets;
-
+    state!.entries[entryIndex].sets.add(WorkoutSet()..timestamp = DateTime.now());
     state = _clone(state!);
-    _save();
   }
 
   void updateSet(int entryIndex, int setIndex, {double? weight, int? reps, double? distance, int? duration, bool? isCompleted}) {
     if (state == null) return;
     final set = state!.entries[entryIndex].sets[setIndex];
-    
     if (weight != null) set.weight = weight;
     if (reps != null) set.reps = reps;
     if (distance != null) set.distance = distance;
     if (duration != null) set.duration = duration;
     if (isCompleted != null) set.isCompleted = isCompleted;
-    
     state = _clone(state!);
-    _save();
   }
   
   void removeSet(int entryIndex, int setIndex) {
      if (state == null) return;
-     final entry = state!.entries[entryIndex];
-     final newSets = List<WorkoutSet>.from(entry.sets);
-     newSets.removeAt(setIndex);
-     entry.sets = newSets;
-     
+     state!.entries[entryIndex].sets.removeAt(setIndex);
      state = _clone(state!);
-     _save();
   }
   
   void removeExercise(int entryIndex) {
      if (state == null) return;
-     final newEntries = List<WorkoutEntry>.from(state!.entries);
-     newEntries.removeAt(entryIndex);
-     state!.entries = newEntries;
+     state!.entries.removeAt(entryIndex);
      state = _clone(state!);
-     _save();
   }
 
+  // FAIL-SAFE FINISH LOGIC
+  // Removed WidgetRef dependency for cleaner architecture
   Future<void> finishSession() async {
-    if (state == null) return;
-    state!.endTime = DateTime.now();
-    await _save();
-    state = null;
-  }
-  
-  Future<void> _save() async {
-    if (state != null) {
+    if (state == null || _isLoading) return;
+    
+    _isLoading = true;
+    try {
+      state!.endTime = DateTime.now();
+      
+      // Perform the write transaction using injected service
       await _service.saveWorkoutSession(state!);
+      state = null;
+    } catch (e) {
+      debugPrint('FAIL-SAFE: Save failed: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
     }
   }
 
   WorkoutSession _clone(WorkoutSession s) {
     return WorkoutSession()
-      ..id = s.id // IMPORTANT: Keep the ID to ensure Isar updates the record
+      ..id = s.id
       ..startTime = s.startTime
       ..endTime = s.endTime
       ..name = s.name

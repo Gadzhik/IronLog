@@ -190,10 +190,14 @@ class ProgressChartWidget extends StatelessWidget {
   }
 
   String _getUnit() {
-    if (exerciseName == 'Планка') return 'МИН';
-    // Logic matches ProgressProvider and AddSetWidget
-    final isBodyweight = exerciseName.contains('Пресс') || // Simplified for broad check or we use category?
-                        ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(exerciseName);
+    if (exerciseName.contains('Планка')) return 'МИН';
+    
+    final isBodyweight = exerciseName.contains('Пресс') || 
+                        exerciseName.contains('Книжка') ||
+                        exerciseName.contains('Гиперэкстензия') ||
+                        exerciseName.contains('Подтягивания') ||
+                        exerciseName.contains('Отжимания от скамьи') ||
+                        exerciseName.contains('Отжимания на брусьях');
     
     if (isBodyweight) return 'ПОВТ';
 
@@ -206,7 +210,7 @@ class ProgressChartWidget extends StatelessWidget {
   }
 
   String _getMetricName() {
-    if (exerciseName == 'Планка') return 'Макс. время';
+    if (exerciseName.contains('Планка')) return 'Макс. время';
     switch (type) {
       case ExerciseType.strength: return 'Макс. вес';
       case ExerciseType.bodyweight: return 'Макс. повторы';

@@ -19,6 +19,15 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.invalidate(progressStreamProvider);
+      ref.invalidate(allExercisesProvider);
+    });
+  }
+
   Exercise? _selectedExercise;
 
   @override
@@ -84,7 +93,7 @@ class _ExerciseListViewState extends State<_ExerciseListView> {
     final keys = grouped.keys.toList()..sort((a,b) {
        if (a == 'ПРОЧЕЕ') return 1;
        if (b == 'ПРОЧЕЕ') return -1;
-       return a!.compareTo(b!);
+       return (a ?? '').compareTo(b ?? '');
     });
 
     return Column(
@@ -131,6 +140,7 @@ class _ExerciseTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Only fetch history metadata
     final historyAsync = ref.watch(progressStreamProvider(exercise.id));
 
     return ListTile(
@@ -219,7 +229,7 @@ class _ExerciseDetailView extends ConsumerWidget {
           const SizedBox(height: 24),
           historyAsync.when(
             data: (data) => data.isNotEmpty 
-              ? _LatestMetricCard(point: data.last, type: exercise.type, exerciseName: exercise.name)
+              ? _LatestMetricCard(point: data.last, history: data, type: exercise.type, exerciseName: exercise.name, exerciseCategory: exercise.category ?? '')
               : const SizedBox.shrink(),
             loading: () => const SizedBox.shrink(),
             error: (_,__) => const SizedBox.shrink(),
@@ -241,10 +251,18 @@ class _ExerciseDetailView extends ConsumerWidget {
 
 class _LatestMetricCard extends StatelessWidget {
   final ProgressDataPoint point;
+  final List<ProgressDataPoint> history;
   final ExerciseType type;
   final String exerciseName;
+  final String exerciseCategory;
 
-  const _LatestMetricCard({required this.point, required this.type, required this.exerciseName});
+  const _LatestMetricCard({
+    required this.point, 
+    required this.history, 
+    required this.type, 
+    required this.exerciseName,
+    required this.exerciseCategory,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -274,11 +292,12 @@ class _LatestMetricCard extends StatelessWidget {
               children: [
                 Text('ПОСЛЕДНИЙ РЕЗУЛЬТАТ', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
                 const SizedBox(height: 4),
+                // MANDATORY DASH RESET: Show dash if history is suspicious or too short
                 Text(
-                  '${point.value.toInt()} ${_getUnit()}', 
+                  history.length < 1 ? '-' : '${point.value.toInt()} ${_getUnit()}', 
                   style: GoogleFonts.bebasNeue(fontSize: 32, letterSpacing: 1)
                 ),
-                if (point.secondaryValue != null && point.secondaryValue! > 0)
+                if (history.isNotEmpty && point.secondaryValue != null && point.secondaryValue! > 0)
                   Text(
                     '+ ${point.secondaryValue!.toInt()} ${_getSecondaryUnit()}', 
                     style: GoogleFonts.bebasNeue(fontSize: 20, color: Theme.of(context).colorScheme.primary.withOpacity(0.7), letterSpacing: 1)
@@ -286,7 +305,7 @@ class _LatestMetricCard extends StatelessWidget {
               ],
             ),
           ),
-          if (point.percentChange != 0)
+          if (history.length > 1 && point.percentChange != 0)
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -297,6 +316,15 @@ class _LatestMetricCard extends StatelessWidget {
                   style: GoogleFonts.bebasNeue(fontSize: 32, color: color, letterSpacing: 1),
                 ),
               ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('ДИНАМИКА', style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text('-', style: GoogleFonts.bebasNeue(fontSize: 32, color: Colors.grey, letterSpacing: 1)),
+              ],
             ),
         ],
       ),
@@ -304,7 +332,17 @@ class _LatestMetricCard extends StatelessWidget {
   }
 
   String _getUnit() {
-    if (exerciseName == 'Планка' || type == ExerciseType.static) return 'МИН';
+    if (exerciseName.contains('Планка')) return 'МИН';
+    
+    final bool isBodyweightOnly = 
+      exerciseCategory.contains('Пресс') || 
+      exerciseName.contains('Книжка') ||
+      exerciseName.contains('Гиперэкстензия') ||
+      exerciseName.contains('Подтягивания') ||
+      exerciseName.contains('Отжимания');
+
+    if (isBodyweightOnly) return 'ПОВТ';
+
     switch (type) {
       case ExerciseType.strength: return 'КГ';
       case ExerciseType.bodyweight: return 'ПОВТ';
@@ -314,8 +352,17 @@ class _LatestMetricCard extends StatelessWidget {
   }
 
   String _getSecondaryUnit() {
+     final bool isBodyweightOnly = 
+      exerciseCategory.contains('Пресс') || 
+      exerciseName.contains('Книжка') ||
+      exerciseName.contains('Гиперэкстензия') ||
+      exerciseName.contains('Подтягивания') ||
+      exerciseName.contains('Отжимания');
+
+    if (isBodyweightOnly) return ''; // No secondary units for bodyweight-only
+
     switch (type) {
-      case ExerciseType.bodyweight: return 'КГ';
+      case ExerciseType.bodyweight: return 'КГ'; // For non-forced bodyweight (like squats with weight maybe?)
       case ExerciseType.cardio: return 'МИН';
       default: return '';
     }
