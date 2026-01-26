@@ -332,14 +332,15 @@ class _LatestMetricCard extends StatelessWidget {
   }
 
   String _getUnit() {
-    if (exerciseName.contains('Планка')) return 'МИН';
+    final lowerName = exerciseName.toLowerCase();
+    if (lowerName.contains('планка')) return 'МИН';
     
     final bool isBodyweightOnly = 
-      exerciseCategory.contains('Пресс') || 
-      exerciseName.contains('Книжка') ||
-      exerciseName.contains('Гиперэкстензия') ||
-      exerciseName.contains('Подтягивания') ||
-      exerciseName.contains('Отжимания');
+      exerciseCategory.toLowerCase().contains('пресс') || 
+      lowerName.contains('книжка') ||
+      lowerName.contains('гиперэкстензия') ||
+      lowerName.contains('подтягивания') ||
+      lowerName.contains('отжимания');
 
     if (isBodyweightOnly) return 'ПОВТ';
 
@@ -352,12 +353,13 @@ class _LatestMetricCard extends StatelessWidget {
   }
 
   String _getSecondaryUnit() {
+     final lowerName = exerciseName.toLowerCase();
      final bool isBodyweightOnly = 
-      exerciseCategory.contains('Пресс') || 
-      exerciseName.contains('Книжка') ||
-      exerciseName.contains('Гиперэкстензия') ||
-      exerciseName.contains('Подтягивания') ||
-      exerciseName.contains('Отжимания');
+      exerciseCategory.toLowerCase().contains('пресс') || 
+      lowerName.contains('книжка') ||
+      lowerName.contains('гиперэкстензия') ||
+      lowerName.contains('подтягивания') ||
+      lowerName.contains('отжимания');
 
     if (isBodyweightOnly) return ''; // No secondary units for bodyweight-only
 
