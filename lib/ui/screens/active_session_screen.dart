@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart'; // MANDATORY IMPORT
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
+import 'package:iron_log/data/app_constants.dart';
 import 'package:iron_log/progress_provider.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/ui/screens/exercise_selection_screen.dart';
@@ -22,9 +23,13 @@ class ActiveSessionScreen extends ConsumerStatefulWidget {
 
 class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   late ConfettiController _confettiController;
-  final TextEditingController _nameController = TextEditingController();
+  
+  // MANDATORY: Init at class level
+  late final TextEditingController _nameController = TextEditingController(
+    text: "Тренинг ${DateFormat('dd.MM.yy-HH.mm.ss').format(DateTime.now())}"
+  );
+
   final ScrollController _scrollController = ScrollController();
-  // Map to store FocusNodes for each exercise entry index
   final Map<int, FocusNode> _focusNodes = {};
   int _prevEntryCount = 0;
   bool _isSaving = false;
@@ -34,21 +39,15 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 3));
     
-    // Validation Listener
     _nameController.addListener(() {
       setState(() {});
     });
-    
-    // Default Name Logic
-    final now = DateTime.now();
-    final defaultName = 'Тренинг ${DateFormat('dd.MM.yy-HH.mm.ss').format(now)}';
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = ref.read(activeSessionProvider);
       if (session != null) {
         if (session.name == null || session.name!.isEmpty) {
-           _nameController.text = defaultName;
-           ref.read(activeSessionProvider.notifier).updateName(defaultName);
+           ref.read(activeSessionProvider.notifier).updateName(_nameController.text);
         } else {
            _nameController.text = session.name!; 
         }
@@ -61,7 +60,9 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     _confettiController.dispose();
     _nameController.dispose();
     _scrollController.dispose();
-    for (var node in _focusNodes.values) node.dispose();
+    for (var node in _focusNodes.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -71,25 +72,21 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
 
     if (!mounted) return;
     
-    // 1. Set Loading
     setState(() => _isSaving = true);
     HapticFeedback.heavyImpact();
 
     try {
-      // 2. Update Name
-      ref.read(activeSessionProvider.notifier).updateName(name);
+      // Normalize name before saving
+      final cleanName = AppConstants.cleanName(name);
 
-      // 3. Save (Fail-Safe)
+      ref.read(activeSessionProvider.notifier).updateName(cleanName);
       await ref.read(activeSessionProvider.notifier).finishSession();
 
-      // 4. Invalidate
       ref.invalidate(historyProvider);
       ref.invalidate(progressStreamProvider);
       
-      // 5. Confetti
       _confettiController.play();
 
-      // 6. Success Navigation
       if (!mounted) return;
       await Future.delayed(const Duration(milliseconds: 2000));
       
@@ -105,7 +102,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
            );
       }
     } finally {
-      // 7. MANDATORY Finalization
       if (mounted) {
          setState(() => _isSaving = false);
       }
@@ -126,14 +122,12 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
 
         if (name.contains('Планка') || entry.exerciseType == ExerciseType.static) {
            isValid = set.duration > 0;
-        } else if (category.contains('Пресс') || 
-                  name.contains('Книжка') ||
-                  ['Гиперэкстензия', 'Подтягивания', 'Отжимания от скамьи', 'Отжимания на брусьях'].contains(name)) {
+        } else if (AppConstants.isBodyweight(name, category)) {
            isValid = set.reps > 0;
         } else {
           switch (entry.exerciseType) {
             case ExerciseType.strength:
-              isValid = set.reps > 0; // Allowing 0 weight for bodyweight-like moves
+              isValid = set.reps > 0; 
               break;
             case ExerciseType.bodyweight:
               isValid = set.reps > 0;
@@ -156,10 +150,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
     final session = ref.watch(activeSessionProvider);
     if (session == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    // Focus Management Logic
     final currentCount = session.entries.length;
     if (currentCount > _prevEntryCount) {
-       // A new exercise was added
        final newIndex = currentCount - 1;
        _focusNodes[newIndex] = FocusNode();
        
@@ -339,7 +331,6 @@ class ExerciseEntryCard extends ConsumerWidget {
             type: entry.exerciseType,
             exerciseName: entry.exerciseName ?? '',
             exerciseCategory: entry.exerciseCategory ?? '',
-            // Pass focus node only to the first set of the newly added exercise
             focusNode: (e.key == 0) ? focusNode : null,
           )),
           const SizedBox(height: 8),

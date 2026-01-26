@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/data/isar_service.dart';
+import 'package:iron_log/data/app_constants.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
 import 'package:intl/intl.dart';
@@ -42,14 +43,9 @@ final lastPerformanceProvider = FutureProvider.family<String?, int>((ref, exerci
              
              // Rule for specific exercises (bodyweight/abs)
              final name = e.exerciseName ?? '';
-             final category = e.exerciseCategory ?? '';
+
              
-             final isBodyweight = category.contains('Пресс') || 
-                                  name.contains('Книжка') ||
-                                  name.contains('Гиперэкстензия') ||
-                                  name.contains('Подтягивания') ||
-                                  name.contains('Отжимания на брусьях') ||
-                                  name.contains('Отжимания от скамьи');
+             final isBodyweight = AppConstants.bodyweightExerciseNames.contains(name);
 
              if (isBodyweight) {
                 return '${lastSet.reps} ПОВТ';
@@ -71,7 +67,7 @@ class ActiveSessionNotifier extends StateNotifier<WorkoutSession?> {
 
   void startSession() {
     final now = DateTime.now();
-    String defaultName = 'ТРЕНИРОВКА ${DateFormat('dd.MM').format(now)}';
+    String defaultName = 'Тренинг ${DateFormat('dd.MM.yy-HH.mm.ss').format(now)}';
     state = WorkoutSession()..startTime = now..name = defaultName;
   }
   

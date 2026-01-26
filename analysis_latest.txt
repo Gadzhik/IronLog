@@ -1,0 +1,15 @@
+Analyzing 3 items...                                            
+
+warning - The value of the local variable 'category' isn't used - lib\providers.dart:46:20 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\screens\home_screen.dart:121:72 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\screens\home_screen.dart:132:65 - deprecated_member_use
+warning - The value of the local variable 'isBodyweight' isn't used - lib\ui\screens\workout_detail_screen.dart:93:11 - unused_local_variable
+  error - Undefined name 'name' - lib\ui\screens\workout_detail_screen.dart:93:72 - undefined_identifier
+  error - Undefined name 'name' - lib\ui\screens\workout_detail_screen.dart:107:13 - undefined_identifier
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:113:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:134:26 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:134:42 - prefer_const_constructors
+  error - Undefined name 'isPlank' - lib\ui\screens\workout_detail_screen.dart:139:28 - undefined_identifier
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:145:25 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:145:41 - prefer_const_constructors
+

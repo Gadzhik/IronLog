@@ -29,6 +29,32 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
   OverlayState? _cachedOverlay;
 
   @override
+  void initState() {
+    super.initState();
+    _initAudio();
+  }
+
+  Future<void> _initAudio() async {
+    try {
+      await _player.setAudioContext(AudioContext(
+        android: AudioContextAndroid(
+          isSpeakerphoneOn: true,
+          stayAwake: true,
+          contentType: AndroidContentType.sonification,
+          usageType: AndroidUsageType.assistanceSonification,
+          audioFocus: AndroidAudioFocus.none,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.ambient,
+        ),
+      ));
+      await _player.setSource(AssetSource('sounds/alert.mp3'));
+    } catch (e) {
+      debugPrint("Audio Init Error: $e");
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _cachedPrimary = Theme.of(context).colorScheme.primary;
@@ -61,8 +87,13 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
              Vibration.vibrate(duration: 500); 
            }
            try {
-             if (mounted) await _player.play(AssetSource('sounds/alert.mp3'));
-           } catch (e) { /* ignore */ }
+             if (mounted && _player.state != PlayerState.playing) {
+                await _player.stop();
+                await _player.resume();
+             }
+           } catch (e) { 
+             debugPrint("Audio Play Error: $e");
+           }
         }
       } else {
         timer.cancel();
@@ -131,9 +162,6 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
   void dispose() {
     _timer?.cancel();
     
-    // STRICT RULE: Do not use Theme.of(context) or Navigator here.
-    // Clean up overlay without context dependencies using cached variable if needed, 
-    // or just remove the entry which is safe.
     if (_overlayEntry != null) {
       try {
         _overlayEntry?.remove(); 
@@ -141,8 +169,18 @@ class _RestTimerInternalState extends ConsumerState<_RestTimerInternal> {
       _overlayEntry = null;
     }
     
-    _player.dispose();
+    _safeDisposeAudio();
     super.dispose();
+  }
+
+  Future<void> _safeDisposeAudio() async {
+    try {
+      await _player.stop();
+      await _player.release();
+      await _player.dispose();
+    } catch (e) {
+      debugPrint("Audio Dispose Error: $e");
+    }
   }
 
   String get timerText {

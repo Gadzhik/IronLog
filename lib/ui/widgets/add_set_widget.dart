@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
 import 'package:iron_log/providers.dart';
+import 'package:iron_log/data/app_constants.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class AddSetWidget extends ConsumerStatefulWidget {
@@ -48,15 +49,11 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
     super.dispose();
   }
 
-  bool get _isPlank => widget.exerciseName.contains('Планка');
+  bool get _isPlank => AppConstants.cleanName(widget.exerciseName) == 'Планка';
   
   bool get _isBodyweightOnly => 
     widget.exerciseCategory.contains('Пресс') || 
-    widget.exerciseName.contains('Книжка') ||
-    widget.exerciseName.contains('Гиперэкстензия') ||
-    widget.exerciseName.contains('Подтягивания') ||
-    widget.exerciseName.contains('Отжимания от скамьи') ||
-    widget.exerciseName.contains('Отжимания на брусьях');
+    AppConstants.isBodyweight(widget.exerciseName, widget.exerciseCategory);
 
   String _getInitialValue1() {
     if (_isPlank) {
