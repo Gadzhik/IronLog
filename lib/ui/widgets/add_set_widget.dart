@@ -49,7 +49,7 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
     super.dispose();
   }
 
-  bool get _isPlank => AppConstants.cleanName(widget.exerciseName) == 'Планка';
+  bool get _isPlank => widget.exerciseName.toLowerCase().contains('планка');
   
   bool get _isBodyweightOnly => 
     widget.exerciseCategory.contains('Пресс') || 
@@ -57,7 +57,8 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
 
   String _getInitialValue1() {
     if (_isPlank) {
-      return widget.set.duration == 0 ? '' : (widget.set.duration / 60).toStringAsFixed(1).replaceAll('.0', '');
+      // Re-reading from reps as requested by UI snippet
+      return widget.set.reps == 0 ? '' : widget.set.reps.toString();
     }
     if (_isBodyweightOnly) {
       return widget.set.reps == 0 ? '' : widget.set.reps.toString();
@@ -66,7 +67,7 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
       case ExerciseType.strength: return widget.set.weight == 0 ? '' : widget.set.weight.toString().replaceAll('.0', '');
       case ExerciseType.bodyweight: return widget.set.reps == 0 ? '' : widget.set.reps.toString();
       case ExerciseType.cardio: return widget.set.distance == 0 ? '' : widget.set.distance.toString().replaceAll('.0', '');
-      case ExerciseType.static: return widget.set.duration == 0 ? '' : (widget.set.duration / 60).toStringAsFixed(1).replaceAll('.0', '');
+      case ExerciseType.static: return widget.set.reps == 0 ? '' : widget.set.reps.toString();
     }
   }
 
@@ -88,7 +89,8 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
     final v2 = int.tryParse(v2Str) ?? 0;
 
     if (_isPlank) {
-      ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, duration: (v1 * 60).toInt());
+      // NUCLEAR FIX: Store Plank minutes in REPS field to support UI snippets
+      ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, reps: v1.toInt(), duration: (v1 * 60).toInt());
       return;
     }
 
@@ -108,7 +110,7 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
         ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, distance: v1, duration: v2);
         break;
       case ExerciseType.static:
-        ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, duration: (v1 * 60).toInt());
+        ref.read(activeSessionProvider.notifier).updateSet(widget.entryIndex, widget.setIndex, reps: v1.toInt());
         break;
     }
   }
@@ -135,7 +137,7 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
           Expanded(
             child: TextField(
               controller: _col1Controller,
-              focusNode: widget.focusNode, // Assign the focus node here
+              focusNode: widget.focusNode,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
@@ -208,7 +210,6 @@ class _AddSetWidgetState extends ConsumerState<AddSetWidget> {
   }
 
   String _getHint2() {
-    // Override: No second field for Plank or Bodyweight
     if (_isPlank || _isBodyweightOnly) return '';
     
     switch (widget.type) {

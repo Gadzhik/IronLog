@@ -120,8 +120,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
         final name = entry.exerciseName ?? '';
         final category = entry.exerciseCategory ?? '';
 
-        if (name.contains('Планка') || entry.exerciseType == ExerciseType.static) {
-           isValid = set.duration > 0;
+        if (name.toLowerCase().contains('планка') || entry.exerciseType == ExerciseType.static) {
+           isValid = set.reps > 0;
         } else if (AppConstants.isBodyweight(name, category)) {
            isValid = set.reps > 0;
         } else {
@@ -296,7 +296,7 @@ class ExerciseEntryCard extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  entry.exerciseName?.toUpperCase() ?? 'УПРАЖНЕНИЕ',
+                  (entry.exerciseName ?? 'УПРАЖНЕНИЕ').replaceAll('"', '').replaceAll("'", "").trim().toUpperCase(),
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                     color: Theme.of(context).colorScheme.primary,

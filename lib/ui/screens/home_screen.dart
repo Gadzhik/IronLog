@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:iron_log/data/models/workout_session.dart';
-import 'package:iron_log/data/app_constants.dart';
 import 'package:iron_log/providers.dart';
 import 'package:iron_log/ui/screens/active_session_screen.dart';
 import 'package:iron_log/ui/screens/stats_screen.dart';
@@ -11,6 +10,12 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:iron_log/ui/app_theme.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+bool isMatch(String input, String target) {
+  final cleanInput = input.replaceAll('"', '').replaceAll("'", "").trim().toLowerCase();
+  final cleanTarget = target.toLowerCase();
+  return cleanInput == cleanTarget;
+}
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -173,8 +178,6 @@ class WorkoutHistoryCard extends StatelessWidget {
   final WorkoutSession session;
   const WorkoutHistoryCard({super.key, required this.session});
 
-  String clean(String s) => s.replaceAll('"', '').trim();
-
   @override
   Widget build(BuildContext context) {
     final dateStr = DateFormat('d MMMM, HH:mm', 'ru').format(session.startTime);
@@ -211,21 +214,29 @@ class WorkoutHistoryCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: session.entries.take(3).map((e) {
-              final name = e.exerciseName ?? '';
-              final cleanName = clean(name);
+              final rawName = e.exerciseName ?? '';
+              final displayName = rawName.replaceAll('"', '').replaceAll("'", "").trim();
+              
+              // Nuclear Unit Fix for "Планка"
+              final unit = rawName.toLowerCase().contains("планка") ? "мин" : "повт";
 
               String details = '';
               if (e.sets.isNotEmpty) {
                  final set = e.sets.lastWhere((s) => s.isCompleted, orElse: () => e.sets.last);
                  
-                 if (cleanName == "Планка") {
-                   details = "${set.reps} мин";
-                 } else if ([
-                    "Книжка", "Подъем ног в висе", "Приседания без веса", 
-                    "Отжимания от пола", "Гиперэкстензия", "Подтягивания", 
-                    "Отжимания на брусьях", "Отжимания от скамьи", "Скручивания"
-                 ].contains(cleanName)) {
-                   details = "${set.reps} повт";
+                 final bool isBodyweight = isMatch(rawName, "книжка") || 
+                                          isMatch(rawName, "планка") || 
+                                          isMatch(rawName, "подъем ног в висе") || 
+                                          isMatch(rawName, "приседания без веса") || 
+                                          isMatch(rawName, "отжимания от пола") ||
+                                          isMatch(rawName, "гиперэкстензия") ||
+                                          isMatch(rawName, "подтягивания") ||
+                                          isMatch(rawName, "отжимания на брусьях") ||
+                                          isMatch(rawName, "отжимания от скамьи") ||
+                                          isMatch(rawName, "скручивания");
+
+                 if (isBodyweight) {
+                   details = "${set.reps} $unit";
                  } else {
                    details = "${set.weight} кг x ${set.reps}";
                  }
@@ -234,7 +245,7 @@ class WorkoutHistoryCard extends StatelessWidget {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(10)),
-                child: Text('${name.toUpperCase()} $details', style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.bold)),
+                child: Text('${displayName.toUpperCase()} $details', style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.bold)),
               );
             }).toList(),
           ),

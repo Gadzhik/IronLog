@@ -12,23 +12,28 @@ class AppConstants {
     "Скручивания",
   ];
 
-  static String cleanName(String name) => name.replaceAll('"', '').trim();
+  static bool isMatch(String input, String target) {
+    final cleanInput = input.replaceAll('"', '').replaceAll("'", "").trim().toLowerCase();
+    final cleanTarget = target.toLowerCase();
+    return cleanInput == cleanTarget;
+  }
+
+  static String cleanName(String name) => name.replaceAll('"', '').replaceAll("'", "").trim();
 
   static bool isBodyweight(String? name, String? category) {
     if (name == null) return false;
-    final normalizedName = cleanName(name);
-    return bodyweightExerciseNames.contains(normalizedName);
+    for (var target in bodyweightExerciseNames) {
+      if (isMatch(name, target)) return true;
+    }
+    return false;
   }
 
   static String getFormattedSet(String exerciseName, dynamic set) {
-    final name = cleanName(exerciseName);
-    
-    if (name == "Планка") {
+    if (isMatch(exerciseName, "планка")) {
       return "${set.reps} мин"; 
     }
     
-    // Check if bodyweight using the existing list + normalization
-    if (bodyweightExerciseNames.contains(name)) {
+    if (isBodyweight(exerciseName, null)) {
       return "${set.reps} повт";
     }
     

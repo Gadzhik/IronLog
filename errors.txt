@@ -1,0 +1,10 @@
+Analyzing 3 items...                                            
+
+warning - Unused import: 'package:iron_log/data/app_constants.dart' - lib\ui\screens\home_screen.dart:5:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\screens\home_screen.dart:127:72 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\screens\home_screen.dart:138:65 - deprecated_member_use
+warning - Unused import: 'package:iron_log/data/app_constants.dart' - lib\ui\screens\workout_detail_screen.dart:5:8 - unused_import
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:136:15 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:139:17 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\ui\screens\workout_detail_screen.dart:141:17 - prefer_const_constructors
+

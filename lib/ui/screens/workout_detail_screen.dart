@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:iron_log/data/models/exercise.dart';
 import 'package:iron_log/data/models/workout_session.dart';
-import 'package:iron_log/data/app_constants.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+bool isMatch(String input, String target) {
+  final cleanInput = input.replaceAll('"', '').replaceAll("'", "").trim().toLowerCase();
+  final cleanTarget = target.toLowerCase();
+  return cleanInput == cleanTarget;
+}
 
 class WorkoutDetailScreen extends StatelessWidget {
   final WorkoutSession session;
@@ -85,27 +90,29 @@ class _ExerciseDetailCard extends StatelessWidget {
   final WorkoutEntry entry;
   const _ExerciseDetailCard({required this.entry});
 
-  String clean(String s) => s.replaceAll('"', '').trim();
-
   @override
   Widget build(BuildContext context) {
     final isCardio = entry.exerciseType == ExerciseType.cardio;
+    final rawName = entry.exerciseName ?? '';
+    final displayName = rawName.replaceAll('"', '').replaceAll("'", "").trim();
     
-    // STRICT VARIABLE DEFINITIONS: Bodyweight check
-    final name = entry.exerciseName ?? '';
-    final cleanName = clean(name);
+    // NUCLEAR PLANK CHECK
+    final bool isPlank = rawName.toLowerCase().contains("планка");
+    final bool isKnizhka = isMatch(rawName, "книжка");
     
-    final isPlank = cleanName == 'Планка';
-    final isBodyweight = [
-        "Книжка", "Подъем ног в висе", "Приседания без веса", 
-        "Отжимания от пола", "Гиперэкстензия", "Подтягивания", 
-        "Отжимания на брусьях", "Отжимания от скамьи", "Скручивания"
-    ].contains(cleanName);
+    final bool isBodyweight = isKnizhka || isPlank || 
+                             isMatch(rawName, "подъем ног в висе") || 
+                             isMatch(rawName, "приседания без веса") || 
+                             isMatch(rawName, "отжимания от пола") ||
+                             isMatch(rawName, "гиперэкстензия") ||
+                             isMatch(rawName, "подтягивания") ||
+                             isMatch(rawName, "отжимания на брусьях") ||
+                             isMatch(rawName, "отжимания от скамьи") ||
+                             isMatch(rawName, "скручивания");
 
-    // Dynamic Header Logic
-    String repHeader = isCardio ? 'ВРЕМЯ' : 'ПОВТ';
+    // Dynamic Header Logic for "Планка"
+    String repHeader = isCardio ? 'ВРЕМЯ' : 'ПОВТ.';
     if (isPlank) repHeader = 'МИН.';
-    if (isBodyweight) repHeader = 'ПОВТ';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -118,15 +125,17 @@ class _ExerciseDetailCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            name.toUpperCase(),
+            displayName.toUpperCase(),
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 20),
           Row(
             children: [
               _HeaderCell(label: '#', width: 30),
-              if (!isBodyweight && !isPlank) 
-                _HeaderCell(label: isCardio ? 'ДИСТАНЦИЯ' : 'ВЕС', expanded: true),
+              if (!isBodyweight && !isCardio) 
+                _HeaderCell(label: 'ВЕС', expanded: true),
+              if (isCardio)
+                _HeaderCell(label: 'ДИСТАНЦИЯ', expanded: true),
               _HeaderCell(label: repHeader, expanded: true),
             ],
           ),
@@ -136,38 +145,27 @@ class _ExerciseDetailCard extends StatelessWidget {
                final s = e.value;
                String f(num v) => v % 1 == 0 ? v.toInt().toString() : v.toString();
 
-               if (isPlank) {
-                 return Padding(
-                   padding: const EdgeInsets.symmetric(vertical: 8.0),
-                   child: Row(
-                      children: [
-                        SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, fontSize: 12))),
-                        Expanded(child: Text('${s.reps} мин', style: const TextStyle(fontWeight: FontWeight.bold))), 
-                      ],
-                   ),
-                 );
-               }
+               // Nuclear Unit Selection
+               final unit = isPlank ? "мин" : (isBodyweight ? "повт" : "");
 
-               if (isBodyweight) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Row(
-                       children: [
-                         SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, fontSize: 12))),
-                         Expanded(child: Text('${s.reps} повт', style: const TextStyle(fontWeight: FontWeight.bold))), 
-                       ],
-                    ),
-                  );
-               }
-
-               // Default case
                return Padding(
                  padding: const EdgeInsets.symmetric(vertical: 8.0),
                  child: Row(
                     children: [
                       SizedBox(width: 30, child: Text('$i', style: TextStyle(fontWeight: FontWeight.w900, color: Theme.of(context).hintColor, fontSize: 12))),
-                      Expanded(child: Text('${f(isCardio ? s.distance : s.weight)} ${isCardio ? 'км' : 'кг'}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                      Expanded(child: Text('${f(isCardio ? s.duration : s.reps)} ${isCardio ? 'мин' : ''}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      
+                      if (!isBodyweight && !isCardio)
+                        Expanded(child: Text('${f(s.weight)} кг', style: const TextStyle(fontWeight: FontWeight.bold))),
+                      
+                      if (isCardio)
+                        Expanded(child: Text('${f(s.distance)} км', style: const TextStyle(fontWeight: FontWeight.bold))),
+
+                      if (isBodyweight)
+                        Expanded(child: Text('${s.reps} $unit', style: const TextStyle(fontWeight: FontWeight.bold)))
+                      else if (isCardio)
+                        Expanded(child: Text('${f(s.duration)} мин', style: const TextStyle(fontWeight: FontWeight.bold)))
+                      else
+                        Expanded(child: Text('${s.reps}', style: const TextStyle(fontWeight: FontWeight.bold))),
                     ],
                  ),
                );
